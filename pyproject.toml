@@ -1,0 +1,22 @@
+[project]
+name = "residual-input-dependence"
+version = "0.1.0"
+description = "Measuring input-invariant and input-dependent residual-stream structure across transformer models."
+requires-python = ">=3.10"
+
+dependencies = [
+    "torch",
+    "transformer-lens",
+    "transformers",
+    "datasets",
+    "numpy",
+    "pandas",
+    "pyyaml",
+    "tqdm",
+    "matplotlib",
+    "einops"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
