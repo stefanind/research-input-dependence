@@ -80,7 +80,8 @@ class RunningActivationStats:
         self.mean_square[layer_idx] = new_mean_square
 
     def variance(self) -> torch.Tensor:
-        return self.m2 / (self.count - 1).clamp_min(1.0)
+        """Return population variance across the observed inputs."""
+        return self.m2 / self.count.clamp_min(1.0)
 
     def save(self, path: str) -> None:
         torch.save(
@@ -96,4 +97,3 @@ class RunningActivationStats:
             },
             path,
         )
-        

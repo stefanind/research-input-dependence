@@ -5,16 +5,11 @@ description = "Measuring input-invariant and input-dependent residual-stream str
 requires-python = ">=3.10"
 
 dependencies = [
-    "torch",
-    "transformer-lens",
-    "transformers",
-    "datasets",
-    "numpy",
-    "pandas",
-    "pyyaml",
-    "tqdm",
-    "matplotlib",
-    "einops"
+    "torch>=2.2,<3",
+    "transformer-lens>=2,<4",
+    "datasets>=2.18,<6",
+    "pyyaml>=6,<7",
+    "tqdm>=4.66,<5",
 ]
 
 [tool.setuptools.packages.find]

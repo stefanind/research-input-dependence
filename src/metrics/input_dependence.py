@@ -28,7 +28,7 @@ def summarize_by_layer(score: torch.Tensor) -> dict[str, torch.Tensor]:
 
     return {
         "layer_mean": score.mean(dim=(1, 2)),
-        "layer_median": score.median(dim=2).values.median(dim=1).values,
+        "layer_median": score.flatten(1).median(dim=1).values,
         "layer_top_1pct": torch.quantile(score.flatten(1), 0.99, dim=1),
         "layer_bottom_1pct": torch.quantile(score.flatten(1), 0.01, dim=1),
     }

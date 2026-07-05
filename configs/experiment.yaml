@@ -3,7 +3,7 @@ experiment:
   seq_len: 128
   batch_size: 8
   num_chunks: 1000 # increase to 10000 after this works
-  device: cuda
+  device: auto
 
 data:
   source: wikitext
@@ -14,8 +14,6 @@ activations:
 
 outputs:
   stats_dir: results/stats
-  metrics_dir: results/metrics
-  figures_dir: results/figures
 
 snapshots:
   enabled: true

@@ -4,9 +4,21 @@ from tqdm import tqdm
 from src.stats.running_stats import RunningActivationStats
 
 
-def batch_tokens(token_chunks: torch.Tensor, batch_size: int):
-    for i in range(0, token_chunks.shape[0], batch_size):
-        yield token_chunks[i : i + batch_size]
+def batch_tokens(
+    token_chunks: torch.Tensor,
+    batch_size: int,
+    snapshot_points: set[int] | None = None,
+):
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    points = sorted(snapshot_points or set())
+    start = 0
+    while start < token_chunks.shape[0]:
+        stop = min(start + batch_size, token_chunks.shape[0])
+        stop = min((point for point in points if start < point < stop), default=stop)
+        yield token_chunks[start:stop]
+        start = stop
 
 
 @torch.no_grad()
@@ -38,15 +50,18 @@ def collect_residual_stats_from_tokens(
     }[hook_type]
 
     snapshot_points = snapshot_points or set()
+    if any(point <= 0 for point in snapshot_points):
+        raise ValueError("snapshot points must be positive")
     processed = 0
     saved_snapshots = set()
 
-    for tokens in tqdm(batch_tokens(token_chunks, batch_size)):
+    for tokens in tqdm(batch_tokens(token_chunks, batch_size, snapshot_points)):
         tokens = tokens.to(device)
 
         _, cache = model.run_with_cache(
             tokens,
             names_filter=lambda name: hook_suffix in name,
+            return_type=None,
         )
 
         for layer_idx in range(num_layers):
@@ -66,7 +81,7 @@ def collect_residual_stats_from_tokens(
 
         del cache
 
-        if device == "cuda":
+        if str(device).startswith("cuda"):
             torch.cuda.empty_cache()
 
     return stats
