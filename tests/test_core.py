@@ -96,23 +96,27 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(int(stats.count[0, 0, 0]), 10)
         self.assertEqual(saved, [("run_split_a_stats.pt", 5), ("run_split_b_stats.pt", 5)])
 
-    def test_chunk_limit_stops_iteration(self):
-        seen = []
-
-        def rows():
-            for text in ("abcd", "unused"):
-                seen.append(text)
-                yield {"text": text}
-
+    def test_chunk_sampling_is_seeded(self):
         class Tokenizer:
-            def encode(self, text, add_special_tokens=False):
-                return list(range(len(text)))
+            def encode(self, text, add_special_tokens=False, **kwargs):
+                return [ord(character) for character in text]
 
-        with patch("src.data.load_text_chunks.load_dataset", return_value=rows()):
-            chunks = load_wikitext_token_chunks(Tokenizer(), seq_len=2, max_chunks=1)
+        rows = [{"text": "abcdefghijklmnopqrstuvwxyz"}]
+        samples = []
+        for seed in (3, 3, 4):
+            with patch("src.data.load_text_chunks.load_dataset", return_value=rows):
+                samples.append(
+                    load_wikitext_token_chunks(
+                        Tokenizer(), seq_len=2, max_chunks=4, sample_seed=seed
+                    )
+                )
 
-        self.assertEqual(chunks.shape, (1, 2))
-        self.assertEqual(seen, ["abcd"])
+        self.assertEqual(samples[0].shape, (4, 2))
+        self.assertTrue(torch.equal(samples[0], samples[1]))
+        self.assertFalse(torch.equal(samples[0], samples[2]))
+        self.assertFalse(
+            torch.equal(samples[0], torch.tensor([[97, 98], [99, 100], [101, 102], [103, 104]]))
+        )
 
         with patch("src.data.load_text_chunks.load_dataset") as load_dataset:
             empty = load_wikitext_token_chunks(Tokenizer(), seq_len=2, max_chunks=0)
@@ -121,7 +125,7 @@ class CoreTests(unittest.TestCase):
 
     def test_chunk_tokenization_preserves_joined_context(self):
         class Tokenizer:
-            def encode(self, text, add_special_tokens=False):
+            def encode(self, text, add_special_tokens=False, **kwargs):
                 return [999 if part == "\n\n\n" else ord(part) for part in split(text)]
 
         def split(text):
@@ -135,20 +139,16 @@ class CoreTests(unittest.TestCase):
                     text = text[1:]
             return parts
 
-        seen = []
-
         def rows():
-            for text in ("one\n", "two", "unused"):
-                seen.append(text)
+            for text in ("one\n", "two"):
                 yield {"text": text}
 
         tokenizer = Tokenizer()
         with patch("src.data.load_text_chunks.load_dataset", return_value=rows()):
-            chunks = load_wikitext_token_chunks(tokenizer, seq_len=1, max_chunks=6)
+            chunks = load_wikitext_token_chunks(tokenizer, seq_len=1)
 
-        expected = tokenizer.encode("one\n\n\ntwo")[:6]
+        expected = tokenizer.encode("one\n\n\ntwo")
         self.assertEqual(chunks.flatten().tolist(), expected)
-        self.assertEqual(seen, ["one\n", "two"])
 
     def test_convergence_helpers_validate_ranges(self):
         values = torch.linspace(-1, 1, 100_000)

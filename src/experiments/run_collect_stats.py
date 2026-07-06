@@ -101,6 +101,7 @@ def main():
             max_chunks=exp_cfg["num_chunks"],
             split=data_cfg.get("split", "train"),
             revision=data_cfg.get("revision"),
+            sample_seed=data_cfg.get("sample_seed", 0),
         )
 
         stats = collect_residual_stats_from_tokens(
@@ -126,6 +127,7 @@ def main():
                 "data_source": data_cfg["source"],
                 "data_split": data_cfg.get("split", "train"),
                 "data_revision": data_cfg.get("revision"),
+                "sample_seed": data_cfg.get("sample_seed", 0),
                 "hook": act_cfg["hook_name"],
                 "num_chunks": token_chunks.shape[0],
             },

@@ -9,6 +9,7 @@ data:
   source: wikitext
   split: train
   revision: b08601e
+  sample_seed: 44
 
 activations:
   hook_name: resid_post

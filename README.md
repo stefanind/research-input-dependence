@@ -28,7 +28,7 @@ The check should report Torch 2.4, CUDA 12.4, and `True`.
 ## Run the experiment
 
 Run commands from the repository root. The default experiment uses 10,000
-unpadded WikiText-103 chunks of 128 tokens each.
+seeded, randomly sampled, unpadded WikiText-103 chunks of 128 tokens each.
 
 The pipeline runs collection, metrics, convergence, split-half reliability,
 per-model plots, and cross-model comparison. Completed artifacts are skipped.
