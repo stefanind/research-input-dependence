@@ -17,7 +17,7 @@ def compute_input_dependence_score(
         highly input-varying
     """
 
-    return variance / (mean_square + eps)
+    return (variance / (mean_square + eps)).clamp(0.0, 1.0)
 
 
 def summarize_by_layer(score: torch.Tensor) -> dict[str, torch.Tensor]:
@@ -47,28 +47,44 @@ def summarize_by_dimension(score: torch.Tensor) -> torch.Tensor:
 
 
 def classify_energy_variance_buckets(
-    variance,
-    mean_square,
-    ids,
+    variance: torch.Tensor,
+    mean_square: torch.Tensor,
+    ids: torch.Tensor,
     energy_quantile: float = 0.5,
-    ids_low_quantile: float = 0.25,
-    ids_high_quantile: float = 0.75,
-):
-    energy_threshold = mean_square.quantile(energy_quantile)
-    ids_low = ids.quantile(ids_low_quantile)
-    ids_high = ids.quantile(ids_high_quantile)
+    ids_quantile: float = 0.5,
+) -> dict[str, torch.Tensor]:
+    """Classify every cell using per-layer IDS and energy thresholds."""
+    if variance.shape != mean_square.shape or ids.shape != mean_square.shape:
+        raise ValueError("variance, mean_square, and ids must have matching shapes")
+    if ids.ndim != 3:
+        raise ValueError("Expected tensors with shape [layers, positions, dimensions]")
 
-    inactive_invariant = (mean_square < energy_threshold) & (ids <= ids_low)
-    active_invariant = (mean_square >= energy_threshold) & (ids <= ids_low)
-    input_varying_active = (mean_square >= energy_threshold) & (ids >= ids_high)
-    noisy_weak = (mean_square < energy_threshold) & (ids >= ids_high)
+    shape = (-1, 1, 1)
+    energy_threshold = mean_square.flatten(1).quantile(
+        energy_quantile, dim=1
+    ).view(shape)
+    ids_threshold = ids.flatten(1).quantile(ids_quantile, dim=1).view(shape)
+
+    invariant = ids <= ids_threshold
+    active = mean_square >= energy_threshold
 
     return {
-        "energy_threshold": energy_threshold,
-        "ids_low": ids_low,
-        "ids_high": ids_high,
-        "inactive_invariant": inactive_invariant,
-        "active_invariant": active_invariant,
-        "input_varying_active": input_varying_active,
-        "noisy_weak": noisy_weak,
+        "energy_threshold": energy_threshold.flatten(),
+        "ids_threshold": ids_threshold.flatten(),
+        "inactive_invariant": invariant & ~active,
+        "active_invariant": invariant & active,
+        "input_varying_active": ~invariant & active,
+        "weak_noisy": ~invariant & ~active,
     }
+
+
+def summarize_buckets_by_layer(
+    buckets: dict[str, torch.Tensor],
+) -> dict[str, torch.Tensor]:
+    names = (
+        "inactive_invariant",
+        "active_invariant",
+        "input_varying_active",
+        "weak_noisy",
+    )
+    return {name: buckets[name].float().mean(dim=(1, 2)) for name in names}

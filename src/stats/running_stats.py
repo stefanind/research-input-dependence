@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 
 
 class RunningActivationStats:
@@ -16,10 +17,12 @@ class RunningActivationStats:
         d_model: int,
         device: str = "cpu",
         dtype: torch.dtype = torch.float32,
+        metadata: dict | None = None,
     ):
         self.num_layers = num_layers
         self.seq_len = seq_len
         self.d_model = d_model
+        self.metadata = dict(metadata or {})
 
         shape = (num_layers, seq_len, d_model)
 
@@ -83,7 +86,12 @@ class RunningActivationStats:
         """Return population variance across the observed inputs."""
         return self.m2 / self.count.clamp_min(1.0)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str, force: bool = False) -> None:
+        output_path = Path(path)
+        if output_path.exists() and not force:
+            raise FileExistsError(f"Refusing to overwrite {output_path}; use --force")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output_path.with_suffix(output_path.suffix + ".tmp")
         torch.save(
             {
                 "count": self.count.cpu(),
@@ -94,6 +102,8 @@ class RunningActivationStats:
                 "num_layers": self.num_layers,
                 "seq_len": self.seq_len,
                 "d_model": self.d_model,
+                "metadata": self.metadata,
             },
-            path,
+            temporary,
         )
+        temporary.replace(output_path)

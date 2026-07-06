@@ -5,4 +5,10 @@ __pycache__/
 .ipynb_checkpoints/
 build/
 dist/
-results/
+/results/stats/
+/results/metrics/
+/results/figures/
+/results/*/stats/
+/results/*/metrics/
+*.pt
+*.tmp

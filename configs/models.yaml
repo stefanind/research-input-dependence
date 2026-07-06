@@ -1,15 +1,24 @@
 models:
   - name: gpt2-small
     hf_name: gpt2-small
+    revision: 607a30d
     library: transformer_lens
     max_seq_len: 128
 
   - name: pythia-160m
     hf_name: EleutherAI/pythia-160m
+    revision: 50f5173
+    library: transformer_lens
+    max_seq_len: 128
+
+  - name: opt-125m
+    hf_name: facebook/opt-125m
+    revision: 27dcfa7
     library: transformer_lens
     max_seq_len: 128
 
   - name: pythia-410m
     hf_name: EleutherAI/pythia-410m
+    revision: 9879c9b
     library: transformer_lens
     max_seq_len: 128
