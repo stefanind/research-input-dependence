@@ -46,6 +46,12 @@ python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 
 The check should report Torch 2.4, CUDA 12.4, and `True`.
 
+Before spending a full run, smoke-test model loading and activation hooks:
+
+```bash
+python -m src.experiments.smoke_test_models --model all
+```
+
 ## Run the experiment
 
 Run commands from the repository root. The default experiment uses 10,000
