@@ -14,6 +14,7 @@ import torch
 @dataclass(frozen=True)
 class ArtifactPaths:
     root: Path
+    data: Path
     stats: Path
     metrics: Path
     tables: Path
@@ -25,6 +26,7 @@ def artifact_paths(cfg: dict) -> ArtifactPaths:
     root = Path(cfg["outputs"].get("root", "results")) / cfg["experiment"]["name"]
     return ArtifactPaths(
         root=root,
+        data=root / "data",
         stats=root / "stats",
         metrics=root / "metrics",
         tables=root / "tables",
@@ -34,7 +36,7 @@ def artifact_paths(cfg: dict) -> ArtifactPaths:
 
 
 def ensure_artifact_dirs(paths: ArtifactPaths) -> None:
-    for path in (paths.stats, paths.metrics, paths.tables, paths.figures):
+    for path in (paths.data, paths.stats, paths.metrics, paths.tables, paths.figures):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -120,7 +122,7 @@ def build_manifest(cfg: dict, models_cfg: dict) -> dict:
             "cuda": torch.version.cuda,
             "cuda_available": torch.cuda.is_available(),
         },
-        "schema": {"stats": 2, "metrics": 3, "classification": 3},
+        "schema": {"stats": 3, "metrics": 4, "classification": 3},
     }
 
 

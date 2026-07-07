@@ -4,8 +4,13 @@ from unittest.mock import patch
 
 import torch
 
-from src.activations.collect_residuals import collect_residual_stats_from_tokens
-from src.data.load_text_chunks import load_wikitext_token_chunks
+from src.activations.collect_residuals import (
+    collect_activation_stats_from_tokens,
+)
+from src.data.load_text_chunks import (
+    load_or_create_wikitext_raw_windows,
+    tokenize_raw_windows,
+)
 from src.experiments.run_analysis import pearson_corr, topk_overlap
 from src.experiments.run_collect_stats import select_model_configs
 from src.metrics.input_dependence import (
@@ -24,9 +29,14 @@ class FakeModel:
         d_model = 1
 
     def run_with_cache(self, tokens, names_filter, return_type):
-        name = "blocks.0.hook_resid_post"
-        self.assert_cache_args = names_filter(name) and return_type is None
-        return None, {name: tokens.float().unsqueeze(-1)}
+        cache = {
+            "blocks.0.hook_resid_pre": tokens.float().unsqueeze(-1),
+            "blocks.0.hook_resid_post": (tokens.float() + 10).unsqueeze(-1),
+            "blocks.0.hook_attn_out": (tokens.float() + 1).unsqueeze(-1),
+            "blocks.0.hook_mlp_out": (tokens.float() + 2).unsqueeze(-1),
+        }
+        self.assert_cache_args = names_filter("blocks.0.hook_resid_post") and return_type is None
+        return None, cache
 
 
 class CoreTests(unittest.TestCase):
@@ -68,18 +78,19 @@ class CoreTests(unittest.TestCase):
 
         model = FakeModel()
         with patch.object(RunningActivationStats, "save", capture):
-            collect_residual_stats_from_tokens(
+            collect_activation_stats_from_tokens(
                 model,
                 torch.arange(20).reshape(10, 2),
                 seq_len=2,
                 batch_size=4,
+                targets=["resid_post"],
                 device="cpu",
                 snapshot_points={3},
                 snapshot_dir=Path("."),
             )
 
         self.assertTrue(model.assert_cache_args)
-        self.assertEqual(saved, [("run_n3_stats.pt", 3)])
+        self.assertEqual(saved, [("resid_post_n3_stats.pt", 3)])
 
     def test_split_half_counts(self):
         saved = []
@@ -88,72 +99,55 @@ class CoreTests(unittest.TestCase):
             saved.append((Path(path).name, int(stats.count[0, 0, 0])))
 
         with patch.object(RunningActivationStats, "save", capture):
-            stats = collect_residual_stats_from_tokens(
+            stats = collect_activation_stats_from_tokens(
                 FakeModel(),
                 torch.arange(20).reshape(10, 2),
                 seq_len=2,
                 batch_size=4,
+                targets=["resid_post"],
                 device="cpu",
                 snapshot_dir=Path("."),
                 split_half_seed=0,
-            )
+            )["resid_post"]
 
         self.assertEqual(int(stats.count[0, 0, 0]), 10)
-        self.assertEqual(saved, [("run_split_a_stats.pt", 5), ("run_split_b_stats.pt", 5)])
+        self.assertEqual(
+            saved,
+            [("resid_post_split_a_stats.pt", 5), ("resid_post_split_b_stats.pt", 5)],
+        )
 
-    def test_chunk_sampling_is_seeded(self):
+    def test_collects_multiple_targets_and_resid_delta(self):
+        stats = collect_activation_stats_from_tokens(
+            FakeModel(),
+            torch.arange(6).reshape(3, 2),
+            seq_len=2,
+            batch_size=2,
+            targets=["resid_post", "resid_delta", "attn_out", "mlp_out"],
+            device="cpu",
+        )
+
+        self.assertEqual(set(stats), {"resid_post", "resid_delta", "attn_out", "mlp_out"})
+        self.assertAlmostEqual(stats["resid_delta"].mean[0, 0, 0].item(), 10.0)
+        self.assertAlmostEqual(stats["attn_out"].mean[0, 0, 0].item(), 3.0)
+        self.assertEqual(stats["resid_delta"].metadata["activation_target"], "resid_delta")
+
+    def test_raw_windows_are_cached_and_tokenized(self):
         class Tokenizer:
             def encode(self, text, add_special_tokens=False, **kwargs):
                 return [ord(character) for character in text]
 
-        rows = [{"text": "abcdefghijklmnopqrstuvwxyz"}]
-        samples = []
-        for seed in (3, 3, 4):
-            with patch("src.data.load_text_chunks.load_dataset", return_value=rows):
-                samples.append(
-                    load_wikitext_token_chunks(
-                        Tokenizer(), seq_len=2, max_chunks=4, sample_seed=seed
-                    )
+        path = Path("unused.jsonl")
+        rows = [{"text": "abcdefghij"}, {"text": "klmnopqrst"}]
+        with patch("src.data.load_text_chunks.load_dataset", return_value=rows):
+            with patch("pathlib.Path.exists", return_value=False), patch(
+                "pathlib.Path.open"
+            ), patch("pathlib.Path.replace"), patch("pathlib.Path.mkdir"):
+                windows = load_or_create_wikitext_raw_windows(
+                    path, max_windows=2, window_chars=5
                 )
 
-        self.assertEqual(samples[0].shape, (4, 2))
-        self.assertTrue(torch.equal(samples[0], samples[1]))
-        self.assertFalse(torch.equal(samples[0], samples[2]))
-        self.assertFalse(
-            torch.equal(samples[0], torch.tensor([[97, 98], [99, 100], [101, 102], [103, 104]]))
-        )
-
-        with patch("src.data.load_text_chunks.load_dataset") as load_dataset:
-            empty = load_wikitext_token_chunks(Tokenizer(), seq_len=2, max_chunks=0)
-        self.assertEqual(empty.shape, (0, 2))
-        load_dataset.assert_not_called()
-
-    def test_chunk_tokenization_preserves_joined_context(self):
-        class Tokenizer:
-            def encode(self, text, add_special_tokens=False, **kwargs):
-                return [999 if part == "\n\n\n" else ord(part) for part in split(text)]
-
-        def split(text):
-            parts = []
-            while text:
-                if text.startswith("\n\n\n"):
-                    parts.append("\n\n\n")
-                    text = text[3:]
-                else:
-                    parts.append(text[0])
-                    text = text[1:]
-            return parts
-
-        def rows():
-            for text in ("one\n", "two"):
-                yield {"text": text}
-
-        tokenizer = Tokenizer()
-        with patch("src.data.load_text_chunks.load_dataset", return_value=rows()):
-            chunks = load_wikitext_token_chunks(tokenizer, seq_len=1)
-
-        expected = tokenizer.encode("one\n\n\ntwo")
-        self.assertEqual(chunks.flatten().tolist(), expected)
+        chunks = tokenize_raw_windows(Tokenizer(), windows, seq_len=2, max_chunks=2)
+        self.assertEqual(chunks.shape, (2, 2))
 
     def test_convergence_helpers_validate_ranges(self):
         values = torch.linspace(-1, 1, 100_000)

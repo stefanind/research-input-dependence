@@ -11,8 +11,11 @@ from src.experiments.artifacts import (
     require_writable,
 )
 from src.models.load_model import load_hooked_model
-from src.data.load_text_chunks import load_wikitext_token_chunks
-from src.activations.collect_residuals import collect_residual_stats_from_tokens
+from src.data.load_text_chunks import (
+    load_or_create_wikitext_raw_windows,
+    tokenize_raw_windows,
+)
+from src.activations.collect_residuals import collect_activation_stats_from_tokens
 
 
 def select_model_configs(models: list[dict], names: list[str]) -> list[dict]:
@@ -26,6 +29,20 @@ def select_model_configs(models: list[dict], names: list[str]) -> list[dict]:
     if unknown:
         raise ValueError(f"Unknown model(s): {', '.join(unknown)}")
     return [by_name[name] for name in names]
+
+
+def activation_targets(act_cfg: dict) -> list[str]:
+    targets = act_cfg.get("targets")
+    if targets is None:
+        targets = [act_cfg["hook_name"]]
+    targets = list(dict.fromkeys(targets))
+    if not targets:
+        raise ValueError("At least one activation target is required")
+    return targets
+
+
+def safe_name(name: str) -> str:
+    return name.replace("/", "__")
 
 
 def main():
@@ -44,6 +61,7 @@ def main():
     act_cfg = cfg["activations"]
     snapshot_cfg = cfg.get("snapshots", {"enabled": False, "points": []})
     reliability_cfg = cfg.get("reliability", {"split_half": False})
+    targets = activation_targets(act_cfg)
 
     with open(args.models_config, "r") as f:
         models_cfg = yaml.safe_load(f)
@@ -69,22 +87,41 @@ def main():
     paths = artifact_paths(cfg)
     ensure_artifact_dirs(paths)
     ensure_manifest(cfg, models_cfg, paths, force=args.force)
+    data_tag = safe_name(
+        f"{data_cfg['source']}_{data_cfg.get('split', 'train')}_"
+        f"{data_cfg.get('revision') or 'default'}"
+    )
+    raw_windows_path = (
+        paths.data
+        / (
+            f"raw_windows_{data_tag}_seed{data_cfg.get('sample_seed', 0)}"
+            f"_n{exp_cfg['num_chunks']}.jsonl"
+        )
+    )
+    raw_windows = load_or_create_wikitext_raw_windows(
+        raw_windows_path,
+        max_windows=exp_cfg["num_chunks"],
+        split=data_cfg.get("split", "train"),
+        revision=data_cfg.get("revision"),
+        sample_seed=data_cfg.get("sample_seed", 0),
+    )
 
     for model_cfg in selected_models:
         model_name = model_cfg["name"]
-        safe_model_name = model_name.replace("/", "__")
-        run_name = f"{safe_model_name}_{act_cfg['hook_name']}"
-        planned = [paths.stats / f"{run_name}_stats.pt"]
-        if snapshot_cfg.get("enabled", False):
-            planned.extend(
-                paths.stats / f"{run_name}_n{point}_stats.pt"
-                for point in snapshot_cfg.get("points", [])
-            )
-        if reliability_cfg.get("split_half", False):
-            planned.extend(
-                paths.stats / f"{run_name}_split_{label}_stats.pt"
-                for label in ("a", "b")
-            )
+        model_stats_dir = paths.stats / safe_name(model_name)
+        planned = []
+        for target in targets:
+            planned.append(model_stats_dir / f"{target}_stats.pt")
+            if snapshot_cfg.get("enabled", False):
+                planned.extend(
+                    model_stats_dir / f"{target}_n{point}_stats.pt"
+                    for point in snapshot_cfg.get("points", [])
+                )
+            if reliability_cfg.get("split_half", False):
+                planned.extend(
+                    model_stats_dir / f"{target}_split_{label}_stats.pt"
+                    for label in ("a", "b")
+                )
         for output_path in planned:
             require_writable(output_path, args.force)
 
@@ -95,25 +132,26 @@ def main():
             revision=model_cfg.get("revision"),
         )
 
-        token_chunks = load_wikitext_token_chunks(
+        token_chunks = tokenize_raw_windows(
             tokenizer=model.tokenizer,
+            windows=raw_windows,
             seq_len=exp_cfg["seq_len"],
             max_chunks=exp_cfg["num_chunks"],
-            split=data_cfg.get("split", "train"),
-            revision=data_cfg.get("revision"),
-            sample_seed=data_cfg.get("sample_seed", 0),
         )
 
-        stats = collect_residual_stats_from_tokens(
+        stats_by_target = collect_activation_stats_from_tokens(
             model=model,
             token_chunks=token_chunks,
             seq_len=exp_cfg["seq_len"],
             batch_size=exp_cfg["batch_size"],
-            hook_type=act_cfg["hook_name"],
+            targets=targets,
             device=device,
-            snapshot_points=set(snapshot_cfg.get("points", [])) if snapshot_cfg.get("enabled", False) else set(),
-            snapshot_dir=paths.stats,
-            run_name=run_name,
+            snapshot_points=(
+                set(snapshot_cfg.get("points", []))
+                if snapshot_cfg.get("enabled", False)
+                else set()
+            ),
+            snapshot_dir=model_stats_dir,
             split_half_seed=(
                 reliability_cfg.get("seed", 0)
                 if reliability_cfg.get("split_half", False)
@@ -128,17 +166,19 @@ def main():
                 "data_split": data_cfg.get("split", "train"),
                 "data_revision": data_cfg.get("revision"),
                 "sample_seed": data_cfg.get("sample_seed", 0),
-                "hook": act_cfg["hook_name"],
+                "raw_windows_path": str(raw_windows_path),
+                "seq_len": exp_cfg["seq_len"],
                 "num_chunks": token_chunks.shape[0],
             },
             force=args.force,
         )
 
-        output_path = paths.stats / f"{run_name}_stats.pt"
-        stats.save(str(output_path), force=args.force)
-        print(f"Saved stats to {output_path}")
+        for target, stats in stats_by_target.items():
+            output_path = model_stats_dir / f"{target}_stats.pt"
+            stats.save(str(output_path), force=args.force)
+            print(f"Saved stats to {output_path}")
 
-        del stats, token_chunks, model
+        del stats_by_target, token_chunks, model
         gc.collect()
         if str(device).startswith("cuda"):
             torch.cuda.empty_cache()

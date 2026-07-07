@@ -5,7 +5,7 @@ import sys
 import yaml
 
 from src.experiments.artifacts import artifact_paths, ensure_artifact_dirs, ensure_manifest
-from src.experiments.run_collect_stats import select_model_configs
+from src.experiments.run_collect_stats import activation_targets, safe_name, select_model_configs
 
 
 def run_module(module: str, arguments: list[str]) -> None:
@@ -38,58 +38,90 @@ def main():
     paths = artifact_paths(cfg)
     ensure_artifact_dirs(paths)
     ensure_manifest(cfg, models_cfg, paths, force=args.force)
-    hook = cfg["activations"]["hook_name"]
+    targets = activation_targets(cfg["activations"])
     snapshot_cfg = cfg.get("snapshots", {})
     snapshots = snapshot_cfg.get("points", []) if snapshot_cfg.get("enabled", False) else []
     split_half = cfg.get("reliability", {}).get("split_half", False)
 
+    models_to_collect = []
     for model in models:
-        stem = f"{model['name'].replace('/', '__')}_{hook}"
-        stats_path = paths.stats / f"{stem}_stats.pt"
-        collection = [stats_path]
-        collection += [paths.stats / f"{stem}_n{n}_stats.pt" for n in snapshots]
-        if split_half:
-            collection += [paths.stats / f"{stem}_split_{side}_stats.pt" for side in ("a", "b")]
+        model_key = safe_name(model["name"])
+        collection = []
+        for target in targets:
+            collection.append(paths.stats / model_key / f"{target}_stats.pt")
+            collection += [
+                paths.stats / model_key / f"{target}_n{n}_stats.pt" for n in snapshots
+            ]
+            if split_half:
+                collection += [
+                    paths.stats / model_key / f"{target}_split_{side}_stats.pt"
+                    for side in ("a", "b")
+                ]
 
         state = complete_or_missing(collection)
         if args.force or state == "missing":
-            command = [
-                "--model",
-                model["name"],
-                "--config",
-                args.config,
-                "--models-config",
-                args.models_config,
-            ]
-            if args.force:
-                command.append("--force")
-            run_module("src.experiments.run_collect_stats", command)
+            models_to_collect.append(model["name"])
         elif state == "partial":
             raise RuntimeError(f"Incomplete collection for {model['name']}; use --force")
 
-        metrics_path = paths.metrics / f"{stem}_metrics.pt"
-        if args.force or not metrics_path.exists():
-            command = ["--stats-path", str(stats_path), "--config", args.config]
-            if args.force:
-                command.append("--force")
-            run_module("src.experiments.run_compute_metrics", command)
+    if models_to_collect:
+        command = [
+            "--model",
+            *models_to_collect,
+            "--config",
+            args.config,
+            "--models-config",
+            args.models_config,
+        ]
+        if args.force:
+            command.append("--force")
+        run_module("src.experiments.run_collect_stats", command)
 
-    final_stats = sorted(paths.stats.glob(f"*_{hook}_stats.pt"))
-    labels = [path.stem.removesuffix(f"_{hook}_stats") for path in final_stats]
-    analysis_outputs = [
-        paths.tables / "model_layer_summary.csv",
-        paths.figures / "model_comparison.png",
+    for model in models:
+        model_key = safe_name(model["name"])
+        for target in targets:
+            stats_path = paths.stats / model_key / f"{target}_stats.pt"
+            metrics_path = paths.metrics / model_key / f"{target}_metrics.pt"
+            if args.force or not metrics_path.exists():
+                command = ["--stats-path", str(stats_path), "--config", args.config]
+                if args.force:
+                    command.append("--force")
+                run_module("src.experiments.run_compute_metrics", command)
+
+    final_stats = [
+        paths.stats / safe_name(model["name"]) / f"{target}_stats.pt"
+        for model in models
+        for target in targets
     ]
-    for label in labels:
-        analysis_outputs.append(paths.figures / f"{label}_summary.png")
-        if len(snapshots) >= 2:
-            analysis_outputs.append(paths.tables / f"{label}_convergence.csv")
-        if split_half:
-            analysis_outputs.append(paths.tables / f"{label}_reliability.csv")
+    analysis_outputs = []
+    for model in models:
+        model_key = safe_name(model["name"])
+        for target in targets:
+            analysis_outputs.append(paths.figures / model_key / f"{target}_summary.png")
+            if len(snapshots) >= 2:
+                analysis_outputs.append(
+                    paths.tables / model_key / f"{target}_convergence.csv"
+                )
+            if split_half:
+                analysis_outputs.append(
+                    paths.tables / model_key / f"{target}_reliability.csv"
+                )
+    for target in targets:
+        analysis_outputs.extend(
+            [
+                paths.tables / "comparison" / f"{target}_model_layer_summary.csv",
+                paths.figures / "comparison" / f"{target}_model_comparison.png",
+            ]
+        )
 
     state = complete_or_missing(analysis_outputs)
     if args.force or state == "missing":
-        command = ["--stats-path", *(str(path) for path in final_stats), "--config", args.config]
+        command = [
+            "--stats-path",
+            *(str(path) for path in final_stats),
+            "--config",
+            args.config,
+        ]
         if args.force:
             command.append("--force")
         run_module("src.experiments.run_analysis", command)

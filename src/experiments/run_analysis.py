@@ -126,14 +126,25 @@ def reliability_rows(stats_path: Path, top_k: int, class_cfg: dict) -> list[dict
     ]
 
 
-def layer_rows(label: str, stats: dict, ivr: torch.Tensor, class_cfg: dict) -> list[dict]:
+def safe_name(name: str) -> str:
+    return name.replace("/", "__")
+
+
+def layer_rows(
+    model: str,
+    target: str,
+    stats: dict,
+    ivr: torch.Tensor,
+    class_cfg: dict,
+) -> list[dict]:
     summary = summarize_by_layer(ivr)
     classes = classify_cells(stats["mean_square"], ivr, **class_cfg)
     fractions = summarize_classes_by_layer(classes)
     layers = ivr.shape[0]
     return [
         {
-            "model": label,
+            "model": model,
+            "target": target,
             "layer": layer,
             "relative_depth": layer / max(layers - 1, 1),
             "mean_ivr": summary["layer_mean"][layer].item(),
@@ -168,35 +179,64 @@ def main():
     for value in args.stats_path:
         path = Path(value)
         stats = load_stats(path)
-        label = stats.get("metadata", {}).get("model", path.stem.removesuffix("_stats"))
-        records.append((label, path, stats, compute_ivr(stats)))
+        metadata = stats.get("metadata", {})
+        model = metadata.get("model", path.parent.name)
+        target = metadata.get("activation_target", path.stem.removesuffix("_stats"))
+        records.append((model, target, path, stats, compute_ivr(stats)))
 
-    planned = [paths.tables / "model_layer_summary.csv", paths.figures / "model_comparison.png"]
-    for label, path, _, _ in records:
-        planned.append(paths.figures / f"{label}_summary.png")
+    targets = sorted({target for _, target, _, _, _ in records})
+    planned = []
+    for model, target, path, _, _ in records:
+        model_key = safe_name(model)
+        planned.append(paths.figures / model_key / f"{target}_summary.png")
         if len(snapshot_paths(path)) >= 2:
-            planned.append(paths.tables / f"{label}_convergence.csv")
+            planned.append(paths.tables / model_key / f"{target}_convergence.csv")
         if split_half and all(split.exists() for split in split_paths(path)):
-            planned.append(paths.tables / f"{label}_reliability.csv")
+            planned.append(paths.tables / model_key / f"{target}_reliability.csv")
+    for target in targets:
+        planned.extend(
+            [
+                paths.tables / "comparison" / f"{target}_model_layer_summary.csv",
+                paths.figures / "comparison" / f"{target}_model_comparison.png",
+            ]
+        )
     for path in planned:
         require_writable(path, args.force)
 
-    all_rows = []
-    for label, path, stats, ivr in records:
-        rows = layer_rows(label, stats, ivr, class_cfg)
-        all_rows.extend(rows)
+    rows_by_target = {target: [] for target in targets}
+    for model, target, path, stats, ivr in records:
+        model_key = safe_name(model)
+        rows = layer_rows(model, target, stats, ivr, class_cfg)
+        rows_by_target[target].extend(rows)
         convergence = convergence_rows(path, ivr, args.top_k)
         if convergence:
-            atomic_csv_save(convergence, paths.tables / f"{label}_convergence.csv", args.force)
+            atomic_csv_save(
+                convergence,
+                paths.tables / model_key / f"{target}_convergence.csv",
+                args.force,
+            )
         reliability = reliability_rows(path, args.top_k, class_cfg) if split_half else []
         if reliability:
-            atomic_csv_save(reliability, paths.tables / f"{label}_reliability.csv", args.force)
+            atomic_csv_save(
+                reliability,
+                paths.tables / model_key / f"{target}_reliability.csv",
+                args.force,
+            )
 
         figure, axes = plt.subplots(2, 2, figsize=(12, 8))
         depth = [row["relative_depth"] for row in rows]
         axes[0, 0].plot(depth, [row["mean_ivr"] for row in rows], marker="o")
-        for key, percentile in (("ivr_p01", "1%"), ("ivr_p05", "5%"), ("ivr_p10", "10%")):
-            axes[0, 1].plot(depth, [row[key] for row in rows], marker="o", label=percentile)
+        for key, percentile in (
+            ("ivr_p01", "1%"),
+            ("ivr_p05", "5%"),
+            ("ivr_p10", "10%"),
+        ):
+            axes[0, 1].plot(
+                depth,
+                [row[key] for row in rows],
+                marker="o",
+                label=percentile,
+            )
         axes[1, 0].plot(depth, [row["median_rms"] for row in rows], marker="o")
         for name in ("consistent_active", "mixed_active", "inactive"):
             axes[1, 1].plot(depth, [row[name] for row in rows], marker="o", label=name)
@@ -226,22 +266,53 @@ def main():
         axes[1, 1].set_yscale("symlog", linthresh=1e-4)
         axes[1, 1].legend(fontsize=8)
         figure.tight_layout()
-        save_figure(figure, paths.figures / f"{label}_summary.png", args.force)
+        save_figure(
+            figure,
+            paths.figures / model_key / f"{target}_summary.png",
+            args.force,
+        )
 
-    atomic_csv_save(all_rows, paths.tables / "model_layer_summary.csv", args.force)
-    figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
-    for label, _, _, _ in records:
-        rows = [row for row in all_rows if row["model"] == label]
-        depth = [row["relative_depth"] for row in rows]
-        axes[0].plot(depth, [row["mean_ivr"] for row in rows], marker="o", label=label)
-        axes[1].plot(depth, [row["consistent_active"] for row in rows], marker="o", label=label)
-    axes[0].set(title="Mean input variation ratio", xlabel="Relative depth", ylabel="Mean IVR")
-    axes[1].set(title="Consistent-active fraction", xlabel="Relative depth", ylabel="Fraction")
-    axes[1].set_yscale("symlog", linthresh=1e-3)
-    for axis in axes:
-        axis.legend()
-    figure.tight_layout()
-    save_figure(figure, paths.figures / "model_comparison.png", args.force)
+    for target, all_rows in rows_by_target.items():
+        atomic_csv_save(
+            all_rows,
+            paths.tables / "comparison" / f"{target}_model_layer_summary.csv",
+            args.force,
+        )
+        figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+        for model in sorted({row["model"] for row in all_rows}):
+            rows = [row for row in all_rows if row["model"] == model]
+            depth = [row["relative_depth"] for row in rows]
+            axes[0].plot(
+                depth,
+                [row["mean_ivr"] for row in rows],
+                marker="o",
+                label=model,
+            )
+            axes[1].plot(
+                depth,
+                [row["consistent_active"] for row in rows],
+                marker="o",
+                label=model,
+            )
+        axes[0].set(
+            title="Mean input variation ratio",
+            xlabel="Relative depth",
+            ylabel="Mean IVR",
+        )
+        axes[1].set(
+            title="Consistent-active fraction",
+            xlabel="Relative depth",
+            ylabel="Fraction",
+        )
+        axes[1].set_yscale("symlog", linthresh=1e-3)
+        for axis in axes:
+            axis.legend()
+        figure.tight_layout()
+        save_figure(
+            figure,
+            paths.figures / "comparison" / f"{target}_model_comparison.png",
+            args.force,
+        )
     print(f"Saved analysis to {paths.root}")
 
 

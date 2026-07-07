@@ -1,5 +1,5 @@
 experiment:
-  name: residual_input_dependence_v001
+  name: residual_input_dependence_v002
   seq_len: 128
   batch_size: 8
   num_chunks: 10000
@@ -12,7 +12,7 @@ data:
   sample_seed: 44
 
 activations:
-  hook_name: resid_post
+  targets: [resid_post, resid_delta, attn_out, mlp_out]
 
 classification:
   inactive_energy_ratio: 0.01
@@ -23,9 +23,9 @@ outputs:
   root: results
 
 snapshots:
-  enabled: true
-  points: [100, 500, 1000, 5000, 10000]
+  enabled: false
+  points: []
 
 reliability:
-  split_half: true
+  split_half: false
   seed: 0

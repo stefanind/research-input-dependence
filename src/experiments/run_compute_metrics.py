@@ -24,11 +24,18 @@ def main():
 
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
-    output_dir = Path(args.output_dir) if args.output_dir else artifact_paths(cfg).metrics
-    output_dir.mkdir(parents=True, exist_ok=True)
+    paths = artifact_paths(cfg)
 
     for stats_path in args.stats_path:
         stats = torch.load(stats_path, map_location="cpu")
+        metadata = stats.get("metadata", {})
+        model = metadata.get("model", Path(stats_path).parent.name)
+        target = metadata.get(
+            "activation_target", Path(stats_path).stem.removesuffix("_stats")
+        )
+        output_root = Path(args.output_dir) if args.output_dir else paths.metrics
+        output_dir = output_root / model.replace("/", "__")
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         ivr = compute_input_variation_ratio(
             variance=stats["variance"],
@@ -42,8 +49,7 @@ def main():
         )
         class_summary = summarize_classes_by_layer(classes)
 
-        stem = Path(stats_path).stem.removesuffix("_stats")
-        output_path = output_dir / f"{stem}_metrics.pt"
+        output_path = output_dir / f"{target}_metrics.pt"
 
         atomic_torch_save(
             {
@@ -58,7 +64,7 @@ def main():
                     "energy_reference": classes["energy_reference"],
                     "energy_threshold": classes["energy_threshold"],
                 },
-                "metadata": stats.get("metadata", {}),
+                "metadata": metadata,
             },
             output_path,
             force=args.force,

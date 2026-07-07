@@ -1,7 +1,7 @@
 # Residual input variation
 
-For a fixed layer `l`, token position `p`, and residual dimension `d`, over
-`N` input chunks:
+For a fixed layer `l`, token position `p`, residual dimension `d`, and
+activation target, over `N` input chunks:
 
 ```text
 mean     = mean(h)
@@ -25,6 +25,15 @@ Classification is secondary to the continuous IVR and energy measurements:
 These measurements describe variation over the sampled input distribution;
 they do not establish universal invariance.
 
+The default targets are:
+
+- `resid_post`: residual state after the block
+- `resid_delta`: net block write, `resid_post - resid_pre`
+- `attn_out`: attention write into the residual stream
+- `mlp_out`: MLP write into the residual stream
+
+The same energy/IVR classification is applied to every target.
+
 ## RunPod setup
 
 Target image:
@@ -40,10 +49,14 @@ The check should report Torch 2.4, CUDA 12.4, and `True`.
 ## Run the experiment
 
 Run commands from the repository root. The default experiment uses 10,000
-seeded, randomly sampled, unpadded WikiText-103 chunks of 128 tokens each.
+seeded, randomly sampled WikiText-103 raw text windows. Each model tokenizes
+the same raw windows with its own tokenizer and keeps fixed-length, unpadded
+chunks of 128 tokens.
 
-The pipeline runs collection, metrics, convergence, split-half reliability,
-per-model plots, and cross-model comparison. Completed artifacts are skipped.
+The pipeline runs collection, metrics, per-model plots, and cross-model
+comparison. Completed artifacts are skipped. Convergence snapshots and
+split-half reliability are disabled by default because 10,000 chunks has
+already been checked; turn them on only for validation runs.
 
 ```bash
 python -m src.experiments.run_pipeline \
@@ -57,12 +70,23 @@ models.
 Artifacts are written beneath the configured experiment name:
 
 ```text
-results/residual_input_dependence_v001/
+results/residual_input_dependence_v002/
   manifest.json
-  stats/       # large tensors; ignored by Git
-  metrics/     # derived tensors; ignored by Git
-  tables/      # convergence, reliability, and comparison CSVs
-  figures/     # per-model and cross-model plots
+  data/
+    raw_windows_wikitext_train_b08601e_seed44_n10000.jsonl
+  stats/<model>/
+    <target>_stats.pt
+  metrics/<model>/
+    <target>_metrics.pt
+  tables/<model>/
+    <target>_convergence.csv
+    <target>_reliability.csv
+  tables/comparison/
+    <target>_model_layer_summary.csv
+  figures/<model>/
+    <target>_summary.png
+  figures/comparison/
+    <target>_model_comparison.png
 ```
 
 The manifest records configurations, pinned model and dataset revisions,
