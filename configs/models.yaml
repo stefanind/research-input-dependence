@@ -5,9 +5,27 @@ models:
     library: transformer_lens
     max_seq_len: 128
 
+  - name: gpt2-medium
+    hf_name: gpt2-medium
+    revision: 6dcaa7a952f72f9298047fd5137cd6e4f05f41da
+    library: transformer_lens
+    max_seq_len: 128
+
+  - name: pythia-70m
+    hf_name: EleutherAI/pythia-70m
+    revision: a39f36b100fe8a5377810d56c3f4789b9c53ac42
+    library: transformer_lens
+    max_seq_len: 128
+
   - name: pythia-160m
     hf_name: EleutherAI/pythia-160m
     revision: 50f5173
+    library: transformer_lens
+    max_seq_len: 128
+
+  - name: pythia-410m
+    hf_name: EleutherAI/pythia-410m
+    revision: 9879c9b
     library: transformer_lens
     max_seq_len: 128
 
@@ -17,8 +35,8 @@ models:
     library: transformer_lens
     max_seq_len: 128
 
-  - name: pythia-410m
-    hf_name: EleutherAI/pythia-410m
-    revision: 9879c9b
+  - name: opt-350m
+    hf_name: facebook/opt-350m
+    revision: 08ab08cc4b72ff5593870b5d527cf4230323703c
     library: transformer_lens
     max_seq_len: 128
