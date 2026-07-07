@@ -13,7 +13,7 @@ models:
 
   - name: opt-125m
     hf_name: facebook/opt-125m
-    revision: 27dcfa7
+    revision: 2f28d2d92338fe5dbe0a3c334646567ba4bd6376
     library: transformer_lens
     max_seq_len: 128
 

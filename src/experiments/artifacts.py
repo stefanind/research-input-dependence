@@ -120,7 +120,7 @@ def build_manifest(cfg: dict, models_cfg: dict) -> dict:
             "cuda": torch.version.cuda,
             "cuda_available": torch.cuda.is_available(),
         },
-        "schema": {"stats": 2, "metrics": 2, "buckets": 2},
+        "schema": {"stats": 2, "metrics": 3, "classification": 3},
     }
 
 

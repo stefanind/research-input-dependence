@@ -13,6 +13,7 @@ def load_hooked_model(
         center_writing_weights=False,
         center_unembed=False,
         revision=revision,
+        use_safetensors=True,
     )
 
     model.eval()

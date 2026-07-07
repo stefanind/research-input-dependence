@@ -1,0 +1,91 @@
+{
+  "config": {
+    "activations": {
+      "hook_name": "resid_post"
+    },
+    "data": {
+      "revision": "b08601e",
+      "sample_seed": 44,
+      "source": "wikitext",
+      "split": "train"
+    },
+    "experiment": {
+      "batch_size": 8,
+      "device": "auto",
+      "name": "residual_input_dependence_v001",
+      "num_chunks": 10000,
+      "seq_len": 128
+    },
+    "outputs": {
+      "root": "results"
+    },
+    "reliability": {
+      "seed": 0,
+      "split_half": true
+    },
+    "snapshots": {
+      "enabled": true,
+      "points": [
+        100,
+        500,
+        1000,
+        5000,
+        10000
+      ]
+    }
+  },
+  "created_at": "2026-07-06T01:39:17.084571+00:00",
+  "git_commit": "0b5020c28a987f4bb9e5b17c26bbec0a77c821eb",
+  "git_dirty": true,
+  "models": {
+    "models": [
+      {
+        "hf_name": "gpt2-small",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-small",
+        "revision": "607a30d"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-160m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-160m",
+        "revision": "50f5173"
+      },
+      {
+        "hf_name": "facebook/opt-125m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "opt-125m",
+        "revision": "2f28d2d92338fe5dbe0a3c334646567ba4bd6376"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-410m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-410m",
+        "revision": "9879c9b"
+      }
+    ]
+  },
+  "schema": {
+    "buckets": 2,
+    "metrics": 2,
+    "stats": 2
+  },
+  "versions": {
+    "cuda": "12.4",
+    "cuda_available": true,
+    "datasets": "5.0.0",
+    "matplotlib": "3.11.0",
+    "numpy": "1.26.3",
+    "platform": "Linux-6.14.0-29-generic-x86_64-with-glibc2.35",
+    "python": "3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]",
+    "pyyaml": "6.0.2",
+    "torch": "2.4.1+cu124",
+    "tqdm": "4.68.3",
+    "transformer-lens": "2.15.4",
+    "transformers": "4.57.6"
+  }
+}

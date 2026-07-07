@@ -8,9 +8,9 @@ import yaml
 
 from src.experiments.artifacts import artifact_paths, atomic_csv_save, require_writable
 from src.metrics.input_dependence import (
-    classify_energy_variance_buckets,
-    compute_input_dependence_score,
-    summarize_buckets_by_layer,
+    classify_cells,
+    compute_input_variation_ratio,
+    summarize_classes_by_layer,
     summarize_by_layer,
 )
 
@@ -19,11 +19,11 @@ def load_stats(path: Path) -> dict:
     return torch.load(path, map_location="cpu")
 
 
-def compute_ids(stats: dict) -> torch.Tensor:
+def compute_ivr(stats: dict) -> torch.Tensor:
     variance = stats.get("m2", stats["variance"])
     if "m2" in stats:
         variance = variance / stats["count"].clamp_min(1.0)
-    return compute_input_dependence_score(variance, stats["mean_square"])
+    return compute_input_variation_ratio(variance, stats["mean_square"])
 
 
 def pearson_corr(a: torch.Tensor, b: torch.Tensor) -> float:
@@ -63,23 +63,23 @@ def save_figure(figure, path: Path, force: bool) -> None:
     plt.close(figure)
 
 
-def convergence_rows(stats_path: Path, final_ids: torch.Tensor, top_k: int) -> list[dict]:
+def convergence_rows(stats_path: Path, final_ivr: torch.Tensor, top_k: int) -> list[dict]:
     snapshots = snapshot_paths(stats_path)
-    final_layer = final_ids.mean(dim=(1, 2))
-    final_dims = final_ids.mean(dim=1)
+    final_layer = final_ivr.mean(dim=(1, 2))
+    final_dims = final_ivr.mean(dim=1)
     rows = []
     for path in snapshots:
-        ids = compute_ids(load_stats(path))
-        layer = ids.mean(dim=(1, 2))
-        dims = ids.mean(dim=1)
+        ivr = compute_ivr(load_stats(path))
+        layer = ivr.mean(dim=(1, 2))
+        dims = ivr.mean(dim=1)
         rows.append(
             {
                 "snapshot": path.name,
                 "n": extract_n(path),
                 "layer_corr": pearson_corr(layer, final_layer),
-                "all_corr": pearson_corr(ids, final_ids),
-                "top_high": topk_overlap(dims, final_dims, top_k),
-                "top_low": topk_overlap(dims, final_dims, top_k, False),
+                "all_ivr_corr": pearson_corr(ivr, final_ivr),
+                "top_varying_overlap": topk_overlap(dims, final_dims, top_k),
+                "top_consistent_overlap": topk_overlap(dims, final_dims, top_k, False),
                 "mean_abs_layer_diff": (layer - final_layer).abs().mean().item(),
             }
         )
@@ -96,50 +96,54 @@ def split_paths(stats_path: Path) -> list[Path]:
     return [stats_path.parent / f"{stem}_split_{label}_stats.pt" for label in ("a", "b")]
 
 
-def reliability_rows(stats_path: Path, top_k: int) -> list[dict]:
+def reliability_rows(stats_path: Path, top_k: int, class_cfg: dict) -> list[dict]:
     paths = split_paths(stats_path)
     if not all(path.exists() for path in paths):
         return []
     split_stats = [load_stats(path) for path in paths]
-    ids_a, ids_b = (compute_ids(stats) for stats in split_stats)
-    buckets = [
-        classify_energy_variance_buckets(stats["variance"], stats["mean_square"], ids)
-        for stats, ids in zip(split_stats, (ids_a, ids_b))
+    ivr_a, ivr_b = (compute_ivr(stats) for stats in split_stats)
+    classes = [
+        classify_cells(stats["mean_square"], ivr, **class_cfg)
+        for stats, ivr in zip(split_stats, (ivr_a, ivr_b))
     ]
-    dims_a, dims_b = ids_a.mean(dim=1), ids_b.mean(dim=1)
-    overall = pearson_corr(ids_a, ids_b)
+    dims_a, dims_b = ivr_a.mean(dim=1), ivr_b.mean(dim=1)
+    overall = pearson_corr(ivr_a, ivr_b)
     high = topk_overlap(dims_a, dims_b, top_k)
     low = topk_overlap(dims_a, dims_b, top_k, False)
     return [
         {
             "layer": layer,
-            "ids_corr": pearson_corr(ids_a[layer], ids_b[layer]),
-            "active_invariant_jaccard": jaccard(
-                buckets[0]["active_invariant"][layer],
-                buckets[1]["active_invariant"][layer],
+            "ivr_corr": pearson_corr(ivr_a[layer], ivr_b[layer]),
+            "consistent_active_jaccard": jaccard(
+                classes[0]["consistent_active"][layer],
+                classes[1]["consistent_active"][layer],
             ),
-            "overall_ids_corr": overall,
-            "top_high_overlap": high,
-            "top_low_overlap": low,
+            "overall_ivr_corr": overall,
+            "top_varying_overlap": high,
+            "top_consistent_overlap": low,
         }
-        for layer in range(ids_a.shape[0])
+        for layer in range(ivr_a.shape[0])
     ]
 
 
-def layer_rows(label: str, stats: dict, ids: torch.Tensor) -> list[dict]:
-    summary = summarize_by_layer(ids)
-    buckets = classify_energy_variance_buckets(stats["variance"], stats["mean_square"], ids)
-    fractions = summarize_buckets_by_layer(buckets)
-    layers = ids.shape[0]
+def layer_rows(label: str, stats: dict, ivr: torch.Tensor, class_cfg: dict) -> list[dict]:
+    summary = summarize_by_layer(ivr)
+    classes = classify_cells(stats["mean_square"], ivr, **class_cfg)
+    fractions = summarize_classes_by_layer(classes)
+    layers = ivr.shape[0]
     return [
         {
             "model": label,
             "layer": layer,
             "relative_depth": layer / max(layers - 1, 1),
-            "mean_ids": summary["layer_mean"][layer].item(),
-            "median_ids": summary["layer_median"][layer].item(),
-            "ids_threshold": buckets["ids_threshold"][layer].item(),
-            "energy_threshold": buckets["energy_threshold"][layer].item(),
+            "mean_ivr": summary["layer_mean"][layer].item(),
+            "median_ivr": summary["layer_median"][layer].item(),
+            "ivr_p01": summary["layer_bottom_1pct"][layer].item(),
+            "ivr_p05": summary["layer_bottom_5pct"][layer].item(),
+            "ivr_p10": summary["layer_bottom_10pct"][layer].item(),
+            "median_rms": classes["energy_reference"][layer].sqrt().item(),
+            "energy_reference": classes["energy_reference"][layer].item(),
+            "inactive_energy_threshold": classes["energy_threshold"][layer].item(),
             **{name: values[layer].item() for name, values in fractions.items()},
         }
         for layer in range(layers)
@@ -158,13 +162,14 @@ def main():
         cfg = yaml.safe_load(f)
     paths = artifact_paths(cfg)
     split_half = cfg.get("reliability", {}).get("split_half", False)
+    class_cfg = cfg["classification"]
 
     records = []
     for value in args.stats_path:
         path = Path(value)
         stats = load_stats(path)
         label = stats.get("metadata", {}).get("model", path.stem.removesuffix("_stats"))
-        records.append((label, path, stats, compute_ids(stats)))
+        records.append((label, path, stats, compute_ivr(stats)))
 
     planned = [paths.tables / "model_layer_summary.csv", paths.figures / "model_comparison.png"]
     for label, path, _, _ in records:
@@ -177,24 +182,49 @@ def main():
         require_writable(path, args.force)
 
     all_rows = []
-    for label, path, stats, ids in records:
-        rows = layer_rows(label, stats, ids)
+    for label, path, stats, ivr in records:
+        rows = layer_rows(label, stats, ivr, class_cfg)
         all_rows.extend(rows)
-        convergence = convergence_rows(path, ids, args.top_k)
+        convergence = convergence_rows(path, ivr, args.top_k)
         if convergence:
             atomic_csv_save(convergence, paths.tables / f"{label}_convergence.csv", args.force)
-        reliability = reliability_rows(path, args.top_k) if split_half else []
+        reliability = reliability_rows(path, args.top_k, class_cfg) if split_half else []
         if reliability:
             atomic_csv_save(reliability, paths.tables / f"{label}_reliability.csv", args.force)
 
-        figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+        figure, axes = plt.subplots(2, 2, figsize=(12, 8))
         depth = [row["relative_depth"] for row in rows]
-        axes[0].plot(depth, [row["mean_ids"] for row in rows], marker="o")
-        for name in ("inactive_invariant", "active_invariant", "input_varying_active", "weak_noisy"):
-            axes[1].plot(depth, [row[name] for row in rows], label=name)
-        axes[0].set(title="Mean IDS", xlabel="Relative depth", ylabel="Mean IDS")
-        axes[1].set(title="Bucket fractions", xlabel="Relative depth", ylabel="Fraction")
-        axes[1].legend(fontsize=8)
+        axes[0, 0].plot(depth, [row["mean_ivr"] for row in rows], marker="o")
+        for key, percentile in (("ivr_p01", "1%"), ("ivr_p05", "5%"), ("ivr_p10", "10%")):
+            axes[0, 1].plot(depth, [row[key] for row in rows], marker="o", label=percentile)
+        axes[1, 0].plot(depth, [row["median_rms"] for row in rows], marker="o")
+        for name in ("consistent_active", "mixed_active", "inactive"):
+            axes[1, 1].plot(depth, [row[name] for row in rows], marker="o", label=name)
+        axes[0, 0].set(
+            title="Mean input variation ratio",
+            xlabel="Relative depth",
+            ylabel="Mean IVR",
+        )
+        axes[0, 1].set(
+            title="Lower-tail IVR quantiles",
+            xlabel="Relative depth",
+            ylabel="IVR",
+        )
+        axes[0, 1].set_yscale("symlog", linthresh=1e-3)
+        axes[0, 1].legend(title="Percentile", fontsize=8)
+        axes[1, 0].set(
+            title="Median RMS activity",
+            xlabel="Relative depth",
+            ylabel="RMS",
+        )
+        axes[1, 0].set_yscale("log")
+        axes[1, 1].set(
+            title="Persistent, mixed, and inactive fractions",
+            xlabel="Relative depth",
+            ylabel="Fraction",
+        )
+        axes[1, 1].set_yscale("symlog", linthresh=1e-4)
+        axes[1, 1].legend(fontsize=8)
         figure.tight_layout()
         save_figure(figure, paths.figures / f"{label}_summary.png", args.force)
 
@@ -203,10 +233,11 @@ def main():
     for label, _, _, _ in records:
         rows = [row for row in all_rows if row["model"] == label]
         depth = [row["relative_depth"] for row in rows]
-        axes[0].plot(depth, [row["mean_ids"] for row in rows], marker="o", label=label)
-        axes[1].plot(depth, [row["active_invariant"] for row in rows], marker="o", label=label)
-    axes[0].set(title="Mean IDS", xlabel="Relative depth", ylabel="Mean IDS")
-    axes[1].set(title="Active-invariant fraction", xlabel="Relative depth", ylabel="Fraction")
+        axes[0].plot(depth, [row["mean_ivr"] for row in rows], marker="o", label=label)
+        axes[1].plot(depth, [row["consistent_active"] for row in rows], marker="o", label=label)
+    axes[0].set(title="Mean input variation ratio", xlabel="Relative depth", ylabel="Mean IVR")
+    axes[1].set(title="Consistent-active fraction", xlabel="Relative depth", ylabel="Fraction")
+    axes[1].set_yscale("symlog", linthresh=1e-3)
     for axis in axes:
         axis.legend()
     figure.tight_layout()

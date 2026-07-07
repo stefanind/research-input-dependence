@@ -9,11 +9,12 @@ from src.data.load_text_chunks import load_wikitext_token_chunks
 from src.experiments.run_analysis import pearson_corr, topk_overlap
 from src.experiments.run_collect_stats import select_model_configs
 from src.metrics.input_dependence import (
-    classify_energy_variance_buckets,
-    compute_input_dependence_score,
-    summarize_buckets_by_layer,
+    classify_cells,
+    compute_input_variation_ratio,
+    summarize_classes_by_layer,
     summarize_by_layer,
 )
+from src.models.load_model import load_hooked_model
 from src.stats.running_stats import RunningActivationStats
 
 
@@ -35,11 +36,15 @@ class CoreTests(unittest.TestCase):
         stats.update_layer(0, values)
 
         self.assertEqual(stats.variance().item(), 1.0)
-        score = compute_input_dependence_score(stats.variance(), stats.mean_square)
-        self.assertAlmostEqual(score.item(), 1.0)
+        ivr = compute_input_variation_ratio(stats.variance(), stats.mean_square)
+        self.assertAlmostEqual(ivr.item(), 1.0)
         self.assertEqual(
-            compute_input_dependence_score(torch.tensor([1.0001]), torch.ones(1)).item(),
+            compute_input_variation_ratio(torch.tensor([1.0001]), torch.ones(1)).item(),
             1.0,
+        )
+        self.assertAlmostEqual(
+            compute_input_variation_ratio(torch.tensor([1.0]), torch.tensor([26.0])).item(),
+            1 / 26,
         )
 
         stats.metadata = {"model": "test"}
@@ -165,30 +170,30 @@ class CoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown model"):
             select_model_configs(models, ["missing"])
 
-    def test_buckets_are_per_layer_and_exhaustive(self):
-        ids = torch.tensor(
-            [[[0.1, 0.2], [0.8, 0.9]], [[0.2, 0.3], [0.7, 0.8]]]
-        )
-        energy = torch.tensor(
-            [[[1.0, 2.0], [3.0, 4.0]], [[100.0, 200.0], [300.0, 400.0]]]
-        )
-        buckets = classify_energy_variance_buckets(energy, energy, ids)
-        fractions = summarize_buckets_by_layer(buckets)
+    def test_model_loading_requires_safetensors(self):
+        with patch("src.models.load_model.HookedTransformer.from_pretrained") as load:
+            load_hooked_model("model", device="cpu", revision="commit")
+
+        self.assertTrue(load.call_args.kwargs["use_safetensors"])
+
+    def test_classes_are_meaningful_and_exhaustive(self):
+        ivr = torch.tensor([[[0.0, 0.05], [0.2, 0.8]]])
+        energy = torch.tensor([[[0.001, 1.0], [1.0, 1.0]]])
+        classes = classify_cells(energy, ivr)
+        fractions = summarize_classes_by_layer(classes)
 
         membership = sum(
-            buckets[name].int()
+            classes[name].int()
             for name in (
-                "inactive_invariant",
-                "active_invariant",
+                "inactive",
+                "consistent_active",
+                "mixed_active",
                 "input_varying_active",
-                "weak_noisy",
             )
         )
         self.assertTrue(torch.equal(membership, torch.ones_like(membership)))
-        self.assertTrue(
-            torch.allclose(sum(fractions.values()), torch.ones(ids.shape[0]))
-        )
-        self.assertGreater(buckets["energy_threshold"][1], buckets["energy_threshold"][0])
+        self.assertTrue(torch.allclose(sum(fractions.values()), torch.ones(ivr.shape[0])))
+        self.assertTrue(all(value.item() == 0.25 for value in fractions.values()))
 
 
 if __name__ == "__main__":

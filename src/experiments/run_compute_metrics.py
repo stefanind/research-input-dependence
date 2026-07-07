@@ -6,9 +6,9 @@ import yaml
 
 from src.experiments.artifacts import artifact_paths, atomic_torch_save
 from src.metrics.input_dependence import (
-    compute_input_dependence_score,
-    classify_energy_variance_buckets,
-    summarize_buckets_by_layer,
+    classify_cells,
+    compute_input_variation_ratio,
+    summarize_classes_by_layer,
     summarize_by_layer,
     summarize_by_dimension,
 )
@@ -30,30 +30,33 @@ def main():
     for stats_path in args.stats_path:
         stats = torch.load(stats_path, map_location="cpu")
 
-        score = compute_input_dependence_score(
+        ivr = compute_input_variation_ratio(
             variance=stats["variance"],
             mean_square=stats["mean_square"],
         )
 
-        layer_summary = summarize_by_layer(score)
-        dim_summary = summarize_by_dimension(score)
-        buckets = classify_energy_variance_buckets(
-            stats["variance"], stats["mean_square"], score
+        layer_summary = summarize_by_layer(ivr)
+        dim_summary = summarize_by_dimension(ivr)
+        classes = classify_cells(
+            stats["mean_square"], ivr, **cfg["classification"]
         )
-        bucket_summary = summarize_buckets_by_layer(buckets)
+        class_summary = summarize_classes_by_layer(classes)
 
         stem = Path(stats_path).stem.removesuffix("_stats")
         output_path = output_dir / f"{stem}_metrics.pt"
 
         atomic_torch_save(
             {
-                "input_dependence_score": score,
+                "mean_activation": stats["mean"],
+                "rms_activation": stats["mean_square"].sqrt(),
+                "input_variation_ratio": ivr,
                 "layer_summary": layer_summary,
                 "dimension_summary": dim_summary,
-                "bucket_summary": bucket_summary,
-                "bucket_thresholds": {
-                    "ids": buckets["ids_threshold"],
-                    "energy": buckets["energy_threshold"],
+                "class_summary": class_summary,
+                "classification": {
+                    **cfg["classification"],
+                    "energy_reference": classes["energy_reference"],
+                    "energy_threshold": classes["energy_threshold"],
                 },
                 "metadata": stats.get("metadata", {}),
             },

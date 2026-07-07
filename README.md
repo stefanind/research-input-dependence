@@ -1,17 +1,29 @@
-# Residual input dependence
+# Residual input variation
 
 For a fixed layer `l`, token position `p`, and residual dimension `d`, over
 `N` input chunks:
 
 ```text
-IDS[l,p,d] = mean((h - mean(h))²) / (mean(h²) + ε)
+mean     = mean(h)
+variance = mean((h - mean) ^ 2)
+energy   = mean(h ^ 2) = mean ^ 2 + variance
+IVR      = variance / (energy + epsilon)
 ```
 
-The means use denominator `N` (no `N-1` sample correction). Low IDS means the
-cell is stable across chunks; high IDS means it varies with the input.
+The means use denominator `N` (no `N-1` sample correction). The input
+variation ratio (IVR) is the fraction of activation energy attributable to
+input-to-input variation. Low IVR indicates a persistent mean; high IVR
+indicates input-varying activity.
 
-Per-layer median IDS and energy thresholds partition every cell into
-inactive-invariant, active-invariant, input-varying-active, or weak/noisy.
+Classification is secondary to the continuous IVR and energy measurements:
+
+- `inactive`: energy is at most 1% of the layer median energy
+- `consistent_active`: active and IVR < 0.1
+- `mixed_active`: active and 0.1 <= IVR < 0.5
+- `input_varying_active`: active and IVR >= 0.5
+
+These measurements describe variation over the sampled input distribution;
+they do not establish universal invariance.
 
 ## RunPod setup
 
@@ -45,7 +57,7 @@ models.
 Artifacts are written beneath the configured experiment name:
 
 ```text
-results/residual_input_dependence_v002/
+results/residual_input_dependence_v001/
   manifest.json
   stats/       # large tensors; ignored by Git
   metrics/     # derived tensors; ignored by Git

@@ -1,7 +1,7 @@
 [project]
 name = "residual-input-dependence"
 version = "0.1.0"
-description = "Measuring input-invariant and input-dependent residual-stream structure across transformer models."
+description = "Measuring persistent and input-varying residual-stream activity across transformer models."
 requires-python = ">=3.10"
 
 dependencies = [
