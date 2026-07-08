@@ -1,3 +1,4 @@
+import os
 import shutil
 from pathlib import Path
 
@@ -13,6 +14,9 @@ def load_hooked_model(
     revision: str | None = None,
     use_safetensors: bool = True,
 ) -> HookedTransformer:
+    if not use_safetensors:
+        os.environ.setdefault("DISABLE_SAFETENSORS_CONVERSION", "1")
+
     model = HookedTransformer.from_pretrained(
         model_name,
         device=device,

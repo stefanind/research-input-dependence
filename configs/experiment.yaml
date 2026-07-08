@@ -1,7 +1,7 @@
 experiment:
-  name: residual_input_dependence_v002
+  name: residual_input_dependence_v003
   seq_len: 128
-  batch_size: 8
+  batch_size: 16
   num_chunks: 10000
   device: auto
 

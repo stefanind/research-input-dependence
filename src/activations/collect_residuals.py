@@ -34,7 +34,7 @@ def required_hook_suffixes(targets: list[str]) -> set[str]:
     for target in targets:
         if target == "resid_delta":
             suffixes.update(("hook_resid_pre", "hook_resid_post"))
-        elif target in HOOK_SUFFIXES:
+        elif target in HOOK_SUFFIXES: 
             suffixes.add(HOOK_SUFFIXES[target])
         else:
             raise ValueError(f"Unknown activation target: {target}")
@@ -70,12 +70,14 @@ def collect_activation_stats_from_tokens(
     num_layers = model.cfg.n_layers
     d_model = model.cfg.d_model
 
+    stats_device = device if str(device).startswith("cuda") else "cpu"
+
     stats = {
         target: RunningActivationStats(
             num_layers=num_layers,
             seq_len=seq_len,
             d_model=d_model,
-            device="cpu",
+            device=stats_device,
             metadata={**(metadata or {}), "activation_target": target, "hook": target},
         )
         for target in targets
@@ -91,7 +93,7 @@ def collect_activation_stats_from_tokens(
                     num_layers,
                     seq_len,
                     d_model,
-                    device="cpu",
+                    device=stats_device,
                     metadata={
                         **(metadata or {}),
                         "activation_target": target,
@@ -104,7 +106,7 @@ def collect_activation_stats_from_tokens(
                     num_layers,
                     seq_len,
                     d_model,
-                    device="cpu",
+                    device=stats_device,
                     metadata={
                         **(metadata or {}),
                         "activation_target": target,
@@ -133,6 +135,8 @@ def collect_activation_stats_from_tokens(
         if split_assignment is not None:
             split_mask = split_assignment[processed : processed + tokens.shape[0]]
         tokens = tokens.to(device)
+        if split_mask is not None:
+            split_mask = split_mask.to(device)
 
         _, cache = model.run_with_cache(
             tokens,
@@ -142,17 +146,13 @@ def collect_activation_stats_from_tokens(
 
         for layer_idx in range(num_layers):
             for target in targets:
-                activation_cpu = activation_from_cache(cache, layer_idx, target).cpu()
-                stats[target].update_layer(layer_idx, activation_cpu)
+                activation = activation_from_cache(cache, layer_idx, target)
+                stats[target].update_layer(layer_idx, activation)
                 if split_stats is not None:
                     if split_mask.any():
-                        split_stats[target][0].update_layer(
-                            layer_idx, activation_cpu[split_mask]
-                        )
+                        split_stats[target][0].update_layer(layer_idx, activation[split_mask])
                     if (~split_mask).any():
-                        split_stats[target][1].update_layer(
-                            layer_idx, activation_cpu[~split_mask]
-                        )
+                        split_stats[target][1].update_layer(layer_idx, activation[~split_mask])
 
         processed += tokens.shape[0]
 
@@ -166,9 +166,6 @@ def collect_activation_stats_from_tokens(
                 saved_snapshots.add(point)
 
         del cache
-
-        if str(device).startswith("cuda"):
-            torch.cuda.empty_cache()
 
     if split_stats is not None and snapshot_dir is not None:
         for target in targets:
