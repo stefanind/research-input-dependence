@@ -6,7 +6,7 @@ import yaml
 
 from src.activations.collect_residuals import activation_from_cache, required_hook_suffixes
 from src.experiments.run_collect_stats import activation_targets, select_model_configs
-from src.models.load_model import load_hooked_model
+from src.models.load_model import clear_hf_model_cache, load_hooked_model
 
 
 def make_tokens(tokenizer, seq_len: int, device: str) -> torch.Tensor:
@@ -27,33 +27,35 @@ def smoke_test_model(model_cfg: dict, targets: list[str], seq_len: int, device: 
     if seq_len > model_cfg["max_seq_len"]:
         raise ValueError(f"seq_len exceeds the limit for {model_cfg['name']}")
 
-    model = load_hooked_model(
-        model_cfg["hf_name"],
-        device=device,
-        revision=model_cfg.get("revision"),
-    )
-    tokens = make_tokens(model.tokenizer, seq_len, device)
-    hook_suffixes = required_hook_suffixes(targets)
-    _, cache = model.run_with_cache(
-        tokens,
-        names_filter=lambda name: any(suffix in name for suffix in hook_suffixes),
-        return_type=None,
-    )
+    model = tokens = cache = None
+    try:
+        model = load_hooked_model(
+            model_cfg["hf_name"],
+            device=device,
+            revision=model_cfg.get("revision"),
+        )
+        tokens = make_tokens(model.tokenizer, seq_len, device)
+        hook_suffixes = required_hook_suffixes(targets)
+        _, cache = model.run_with_cache(
+            tokens,
+            names_filter=lambda name: any(suffix in name for suffix in hook_suffixes),
+            return_type=None,
+        )
 
-    for layer_idx in range(model.cfg.n_layers):
-        for target in targets:
-            activation = activation_from_cache(cache, layer_idx, target)
-            expected = (1, seq_len, model.cfg.d_model)
-            if tuple(activation.shape) != expected:
-                raise ValueError(
-                    f"{target} layer {layer_idx} has shape {tuple(activation.shape)}, "
-                    f"expected {expected}"
-                )
-
-    del cache, tokens, model
-    gc.collect()
-    if str(device).startswith("cuda"):
-        torch.cuda.empty_cache()
+        for layer_idx in range(model.cfg.n_layers):
+            for target in targets:
+                activation = activation_from_cache(cache, layer_idx, target)
+                expected = (1, seq_len, model.cfg.d_model)
+                if tuple(activation.shape) != expected:
+                    raise ValueError(
+                        f"{target} layer {layer_idx} has shape "
+                        f"{tuple(activation.shape)}, expected {expected}"
+                    )
+    finally:
+        del cache, tokens, model
+        gc.collect()
+        if str(device).startswith("cuda"):
+            torch.cuda.empty_cache()
 
 
 def main():
@@ -63,6 +65,7 @@ def main():
     parser.add_argument("--models-config", default="configs/models.yaml")
     parser.add_argument("--seq-len", type=int, default=128)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--clear-hf-cache", action="store_true")
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -81,12 +84,18 @@ def main():
     for model_cfg in models:
         name = model_cfg["name"]
         print(f"\nSmoke testing {name} on {device}")
+        if args.clear_hf_cache:
+            for path in clear_hf_model_cache(model_cfg["hf_name"]):
+                print(f"Cleared pre-existing HF cache: {path}")
         try:
             smoke_test_model(model_cfg, targets, args.seq_len, device)
             print(f"OK: {name}")
         except Exception as error:
             failures.append((name, error))
             print(f"FAILED: {name}: {error}")
+        if args.clear_hf_cache:
+            for path in clear_hf_model_cache(model_cfg["hf_name"]):
+                print(f"Cleared HF cache: {path}")
 
     if failures:
         names = ", ".join(name for name, _ in failures)

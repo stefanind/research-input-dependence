@@ -52,6 +52,13 @@ Before spending a full run, smoke-test model loading and activation hooks:
 python -m src.experiments.smoke_test_models --model all
 ```
 
+If disk space is tight, delete each model from the Hugging Face cache after
+testing it:
+
+```bash
+python -m src.experiments.smoke_test_models --model all --clear-hf-cache
+```
+
 ## Run the experiment
 
 Run commands from the repository root. The default experiment uses 10,000
@@ -72,6 +79,9 @@ python -m src.experiments.run_pipeline \
 Add `pythia-410m` for the optional scale check, or use `--model all`. Use
 `--force` only when intentionally replacing every artifact for the selected
 models.
+
+Use `--clear-hf-cache` if the RunPod volume cannot hold all downloaded model
+weights at once. This redownloads models on future runs.
 
 Artifacts are written beneath the configured experiment name:
 

@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--config", default="configs/experiment.yaml")
     parser.add_argument("--models-config", default="configs/models.yaml")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--clear-hf-cache", action="store_true")
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -75,6 +76,8 @@ def main():
         ]
         if args.force:
             command.append("--force")
+        if args.clear_hf_cache:
+            command.append("--clear-hf-cache")
         run_module("src.experiments.run_collect_stats", command)
 
     for model in models:

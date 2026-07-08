@@ -10,7 +10,7 @@ from src.experiments.artifacts import (
     ensure_manifest,
     require_writable,
 )
-from src.models.load_model import load_hooked_model
+from src.models.load_model import clear_hf_model_cache, load_hooked_model
 from src.data.load_text_chunks import (
     load_or_create_wikitext_raw_windows,
     tokenize_raw_windows,
@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--config", type=str, default="configs/experiment.yaml")
     parser.add_argument("--models-config", type=str, default="configs/models.yaml")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--clear-hf-cache", action="store_true")
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -126,62 +127,70 @@ def main():
             require_writable(output_path, args.force)
 
         print(f"\nCollecting {model_name} on {device}")
-        model = load_hooked_model(
-            model_cfg["hf_name"],
-            device=device,
-            revision=model_cfg.get("revision"),
-        )
+        if args.clear_hf_cache:
+            for path in clear_hf_model_cache(model_cfg["hf_name"]):
+                print(f"Cleared pre-existing HF cache: {path}")
+        model = token_chunks = stats_by_target = None
+        try:
+            model = load_hooked_model(
+                model_cfg["hf_name"],
+                device=device,
+                revision=model_cfg.get("revision"),
+            )
 
-        token_chunks = tokenize_raw_windows(
-            tokenizer=model.tokenizer,
-            windows=raw_windows,
-            seq_len=exp_cfg["seq_len"],
-            max_chunks=exp_cfg["num_chunks"],
-        )
+            token_chunks = tokenize_raw_windows(
+                tokenizer=model.tokenizer,
+                windows=raw_windows,
+                seq_len=exp_cfg["seq_len"],
+                max_chunks=exp_cfg["num_chunks"],
+            )
 
-        stats_by_target = collect_activation_stats_from_tokens(
-            model=model,
-            token_chunks=token_chunks,
-            seq_len=exp_cfg["seq_len"],
-            batch_size=exp_cfg["batch_size"],
-            targets=targets,
-            device=device,
-            snapshot_points=(
-                set(snapshot_cfg.get("points", []))
-                if snapshot_cfg.get("enabled", False)
-                else set()
-            ),
-            snapshot_dir=model_stats_dir,
-            split_half_seed=(
-                reliability_cfg.get("seed", 0)
-                if reliability_cfg.get("split_half", False)
-                else None
-            ),
-            metadata={
-                "experiment": exp_cfg["name"],
-                "model": model_name,
-                "hf_model": model_cfg["hf_name"],
-                "model_revision": model_cfg.get("revision"),
-                "data_source": data_cfg["source"],
-                "data_split": data_cfg.get("split", "train"),
-                "data_revision": data_cfg.get("revision"),
-                "sample_seed": data_cfg.get("sample_seed", 0),
-                "raw_windows_path": str(raw_windows_path),
-                "seq_len": exp_cfg["seq_len"],
-                "num_chunks": token_chunks.shape[0],
-            },
-            force=args.force,
-        )
+            stats_by_target = collect_activation_stats_from_tokens(
+                model=model,
+                token_chunks=token_chunks,
+                seq_len=exp_cfg["seq_len"],
+                batch_size=exp_cfg["batch_size"],
+                targets=targets,
+                device=device,
+                snapshot_points=(
+                    set(snapshot_cfg.get("points", []))
+                    if snapshot_cfg.get("enabled", False)
+                    else set()
+                ),
+                snapshot_dir=model_stats_dir,
+                split_half_seed=(
+                    reliability_cfg.get("seed", 0)
+                    if reliability_cfg.get("split_half", False)
+                    else None
+                ),
+                metadata={
+                    "experiment": exp_cfg["name"],
+                    "model": model_name,
+                    "hf_model": model_cfg["hf_name"],
+                    "model_revision": model_cfg.get("revision"),
+                    "data_source": data_cfg["source"],
+                    "data_split": data_cfg.get("split", "train"),
+                    "data_revision": data_cfg.get("revision"),
+                    "sample_seed": data_cfg.get("sample_seed", 0),
+                    "raw_windows_path": str(raw_windows_path),
+                    "seq_len": exp_cfg["seq_len"],
+                    "num_chunks": token_chunks.shape[0],
+                },
+                force=args.force,
+            )
 
-        for target, stats in stats_by_target.items():
-            output_path = model_stats_dir / f"{target}_stats.pt"
-            stats.save(str(output_path), force=args.force)
-            print(f"Saved stats to {output_path}")
-
-        del stats_by_target, token_chunks, model
-        gc.collect()
-        if str(device).startswith("cuda"):
-            torch.cuda.empty_cache()
+            for target, stats in stats_by_target.items():
+                output_path = model_stats_dir / f"{target}_stats.pt"
+                stats.save(str(output_path), force=args.force)
+                print(f"Saved stats to {output_path}")
+        finally:
+            del stats_by_target, token_chunks, model
+            gc.collect()
+            if str(device).startswith("cuda"):
+                torch.cuda.empty_cache()
+            if args.clear_hf_cache:
+                for path in clear_hf_model_cache(model_cfg["hf_name"]):
+                    print(f"Cleared HF cache: {path}")
 
 
 if __name__ == "__main__":
