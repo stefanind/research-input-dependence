@@ -37,14 +37,14 @@ The same energy/IVR classification is applied to every target.
 ## RunPod setup
 
 Target image:
-`runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04`.
+`runpod/pytorch:10.2-cuda1281-torch280-ubuntu2404`.
 
 ```bash
 python -m pip install -e .
 python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
 ```
 
-The check should report Torch 2.4, CUDA 12.4, and `True`.
+The check should report Torch 2.8, CUDA 12.8, and `True`.
 
 Before spending a full run, smoke-test model loading and activation hooks:
 

@@ -136,6 +136,7 @@ def main():
                 model_cfg["hf_name"],
                 device=device,
                 revision=model_cfg.get("revision"),
+                use_safetensors=model_cfg.get("use_safetensors", True),
             )
 
             token_chunks = tokenize_raw_windows(
@@ -168,6 +169,7 @@ def main():
                     "model": model_name,
                     "hf_model": model_cfg["hf_name"],
                     "model_revision": model_cfg.get("revision"),
+                    "use_safetensors": model_cfg.get("use_safetensors", True),
                     "data_source": data_cfg["source"],
                     "data_split": data_cfg.get("split", "train"),
                     "data_revision": data_cfg.get("revision"),

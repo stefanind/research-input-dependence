@@ -33,6 +33,7 @@ def smoke_test_model(model_cfg: dict, targets: list[str], seq_len: int, device: 
             model_cfg["hf_name"],
             device=device,
             revision=model_cfg.get("revision"),
+            use_safetensors=model_cfg.get("use_safetensors", True),
         )
         tokens = make_tokens(model.tokenizer, seq_len, device)
         hook_suffixes = required_hook_suffixes(targets)

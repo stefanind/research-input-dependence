@@ -11,6 +11,7 @@ def load_hooked_model(
     model_name: str,
     device: str = "cuda",
     revision: str | None = None,
+    use_safetensors: bool = True,
 ) -> HookedTransformer:
     model = HookedTransformer.from_pretrained(
         model_name,
@@ -19,7 +20,7 @@ def load_hooked_model(
         center_writing_weights=False,
         center_unembed=False,
         revision=revision,
-        use_safetensors=True,
+        use_safetensors=use_safetensors,
     )
 
     model.eval()

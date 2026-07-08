@@ -2,9 +2,9 @@ models:
   # GPT-2 family
   - name: distilgpt2
     hf_name: distilgpt2
-    revision: 607a30d
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: gpt2-small
     hf_name: gpt2-small
@@ -60,12 +60,14 @@ models:
     revision: 3f5c25d0bc631cb57ac65913f76e22c2dfb61d62
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: opt-2.7b
     hf_name: facebook/opt-2.7b
     revision: 905a4b602cda5c501f1b3a2650a4152680238254
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   # Pythia family
   - name: pythia-14m
@@ -234,27 +236,32 @@ models:
     revision: 77f1b168e219585646439073245fe87e56b3023e
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: tinystories-3m
     hf_name: roneneldan/TinyStories-3M
     revision: cfaf26ec85ecdfc1bd7c2638104cce55cb67f894
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: tinystories-8m
     hf_name: roneneldan/TinyStories-8M
     revision: 8612e3b15c66ffa94eaa6ee0de5c96edd2d630af
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: tinystories-28m
     hf_name: roneneldan/TinyStories-28M
     revision: 52dabea9997faf578489d619249616926e54ed18
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
 
   - name: tinystories-33m
     hf_name: roneneldan/TinyStories-33M
     revision: 2ad0a164221b7c4d21cac7c46aec74f6f98dbfc8
     library: transformer_lens
     max_seq_len: 128
+    use_safetensors: false
