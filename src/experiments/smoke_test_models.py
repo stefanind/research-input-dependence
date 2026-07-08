@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--model", nargs="+", default=["all"])
     parser.add_argument("--config", default="configs/experiment.yaml")
     parser.add_argument("--models-config", default="configs/models.yaml")
-    parser.add_argument("--seq-len", type=int, default=16)
+    parser.add_argument("--seq-len", type=int, default=128)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 

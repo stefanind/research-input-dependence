@@ -134,9 +134,13 @@ def ensure_manifest(
 ) -> None:
     if paths.manifest.exists() and not force:
         existing = json.loads(paths.manifest.read_text(encoding="utf-8"))
-        if existing.get("config") != cfg or existing.get("models") != models_cfg:
+        if existing.get("config") != cfg:
             raise ValueError(
                 f"Existing manifest disagrees with current config: {paths.manifest}"
             )
+        if existing.get("models") != models_cfg:
+            updated = build_manifest(cfg, models_cfg)
+            updated["created_at"] = existing.get("created_at", updated["created_at"])
+            atomic_json_save(updated, paths.manifest, force=True)
         return
     atomic_json_save(build_manifest(cfg, models_cfg), paths.manifest, force=force)

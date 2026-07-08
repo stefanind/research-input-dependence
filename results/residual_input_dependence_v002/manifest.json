@@ -1,0 +1,109 @@
+{
+  "config": {
+    "activations": {
+      "targets": [
+        "resid_post",
+        "resid_delta",
+        "attn_out",
+        "mlp_out"
+      ]
+    },
+    "classification": {
+      "consistent_ivr_max": 0.1,
+      "inactive_energy_ratio": 0.01,
+      "varying_ivr_min": 0.5
+    },
+    "data": {
+      "revision": "b08601e",
+      "sample_seed": 44,
+      "source": "wikitext",
+      "split": "train"
+    },
+    "experiment": {
+      "batch_size": 8,
+      "device": "auto",
+      "name": "residual_input_dependence_v002",
+      "num_chunks": 10000,
+      "seq_len": 128
+    },
+    "outputs": {
+      "root": "results"
+    },
+    "reliability": {
+      "seed": 0,
+      "split_half": false
+    },
+    "snapshots": {
+      "enabled": false,
+      "points": []
+    }
+  },
+  "created_at": "2026-07-07T22:06:59.478912+00:00",
+  "git_commit": "15785cd1966c6f85ee7d46801f955e941d04a0c1",
+  "git_dirty": false,
+  "models": {
+    "models": [
+      {
+        "hf_name": "gpt2-small",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-small",
+        "revision": "607a30d"
+      },
+      {
+        "hf_name": "gpt2-medium",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-medium",
+        "revision": "6dcaa7a952f72f9298047fd5137cd6e4f05f41da"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-70m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-70m",
+        "revision": "a39f36b100fe8a5377810d56c3f4789b9c53ac42"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-160m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-160m",
+        "revision": "50f5173"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-410m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-410m",
+        "revision": "9879c9b"
+      },
+      {
+        "hf_name": "facebook/opt-125m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "opt-125m",
+        "revision": "2f28d2d92338fe5dbe0a3c334646567ba4bd6376"
+      }
+    ]
+  },
+  "schema": {
+    "classification": 3,
+    "metrics": 4,
+    "stats": 3
+  },
+  "versions": {
+    "cuda": "12.4",
+    "cuda_available": true,
+    "datasets": "5.0.0",
+    "matplotlib": "3.11.0",
+    "numpy": "1.26.3",
+    "platform": "Linux-6.8.0-85-generic-x86_64-with-glibc2.35",
+    "python": "3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]",
+    "pyyaml": "6.0.2",
+    "torch": "2.4.1+cu124",
+    "tqdm": "4.68.4",
+    "transformer-lens": "2.15.4",
+    "transformers": "4.57.6"
+  }
+}
