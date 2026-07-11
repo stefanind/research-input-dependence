@@ -72,8 +72,7 @@ split-half reliability are disabled by default because 10,000 chunks has
 already been checked; turn them on only for validation runs.
 
 ```bash
-python -m src.experiments.run_pipeline \
-  --model gpt2-small pythia-160m opt-125m
+python -m src.experiments.run_pipeline --model all --clear-hf-cache
 ```
 
 Add `pythia-410m` for the optional scale check, or use `--model all`. Use

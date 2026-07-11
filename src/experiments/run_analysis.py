@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import yaml
 
@@ -128,6 +129,152 @@ def reliability_rows(stats_path: Path, top_k: int, class_cfg: dict) -> list[dict
 
 def safe_name(name: str) -> str:
     return name.replace("/", "__")
+
+
+def model_family(model: str) -> str:
+    if model == "distilgpt2" or model.startswith("gpt2"):
+        return "gpt2"
+    if model.startswith("gpt-neo"):
+        return "gpt-neo"
+    if model.startswith("opt"):
+        return "opt"
+    if model.startswith("pythia"):
+        return "pythia"
+    if model.startswith("bloom"):
+        return "bloom"
+    if model.startswith("olmo"):
+        return "olmo"
+    if model.startswith("qwen"):
+        return "qwen"
+    if model.startswith("phi"):
+        return "phi"
+    if model.startswith("tinystories"):
+        return "tinystories"
+    return "other"
+
+
+def natural_key(value: str) -> list:
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", value)]
+
+
+def model_size_key(model: str) -> float:
+    manual_sizes_millions = {
+        "distilgpt2": 82,
+        "gpt2-small": 124,
+        "gpt2-medium": 355,
+        "gpt2-large": 774,
+        "gpt2-xl": 1558,
+        "bloom-1b1": 1100,
+        "bloom-1b7": 1700,
+        "phi-1": 1300,
+        "phi-1_5": 1300,
+        "phi-2": 2700,
+    }
+    if model in manual_sizes_millions:
+        return manual_sizes_millions[model]
+
+    matches = re.findall(r"(\d+(?:\.\d+)?)([mb])", model.lower())
+    if not matches:
+        return float("inf")
+    value, unit = matches[-1]
+    multiplier = 1000 if unit == "b" else 1
+    return float(value) * multiplier
+
+
+def model_sort_key(model: str) -> tuple:
+    family_order = {
+        "gpt2": 0,
+        "gpt-neo": 1,
+        "opt": 2,
+        "pythia": 3,
+        "bloom": 4,
+        "olmo": 5,
+        "qwen": 6,
+        "phi": 7,
+        "tinystories": 8,
+        "other": 9,
+    }
+    return (
+        family_order[model_family(model)],
+        model_size_key(model),
+        "deduped" in model,
+        natural_key(model),
+    )
+
+
+def average(rows: list[dict], key: str) -> float:
+    return sum(row[key] for row in rows) / len(rows)
+
+
+def comparison_figure(target: str, all_rows: list[dict]):
+    rows_by_model = {}
+    for row in all_rows:
+        rows_by_model.setdefault(row["model"], []).append(row)
+
+    models = sorted(rows_by_model, key=model_sort_key)
+    summary_columns = [
+        ("mean IVR", lambda rows: average(rows, "mean_ivr")),
+        ("avg consistent", lambda rows: average(rows, "consistent_active")),
+        ("max consistent", lambda rows: max(row["consistent_active"] for row in rows)),
+        ("avg mixed", lambda rows: average(rows, "mixed_active")),
+        ("avg varying", lambda rows: average(rows, "input_varying_active")),
+    ]
+    summary = np.array(
+        [
+            [function(rows_by_model[model]) for _, function in summary_columns]
+            for model in models
+        ]
+    )
+
+    depth_points = np.linspace(0, 1, 11)
+    depth_summary = np.zeros((len(models), len(depth_points)))
+    for model_index, model in enumerate(models):
+        rows = sorted(rows_by_model[model], key=lambda row: row["relative_depth"])
+        depth_summary[model_index] = np.interp(
+            depth_points,
+            [row["relative_depth"] for row in rows],
+            [row["consistent_active"] for row in rows],
+        )
+
+    height = max(8.0, 0.3 * len(models))
+    figure, axes = plt.subplots(1, 2, figsize=(13.5, height), width_ratios=(1, 1.4))
+
+    image = axes[0].imshow(summary, aspect="auto", vmin=0, vmax=1, cmap="magma")
+    axes[0].set(
+        title=f"{target}: model-level summary",
+        xticks=range(len(summary_columns)),
+        yticks=range(len(models)),
+    )
+    axes[0].set_xticklabels([name for name, _ in summary_columns], rotation=45, ha="right")
+    axes[0].set_yticklabels(models)
+    figure.colorbar(image, ax=axes[0], fraction=0.04, pad=0.02)
+
+    depth_image = axes[1].imshow(
+        depth_summary,
+        aspect="auto",
+        vmin=0,
+        vmax=max(0.1, depth_summary.max()),
+        cmap="viridis",
+    )
+    axes[1].set(
+        title="consistent-active by relative depth",
+        xlabel="Relative depth bin",
+        xticks=range(len(depth_points)),
+        yticks=range(len(models)),
+    )
+    axes[1].set_xticklabels(
+        [f"{depth:.1f}" for depth in depth_points],
+        rotation=45,
+        ha="right",
+    )
+    axes[1].set_yticklabels([])
+    figure.colorbar(depth_image, ax=axes[1], fraction=0.04, pad=0.02)
+
+    for axis in axes:
+        axis.tick_params(axis="y", labelsize=7)
+        axis.tick_params(axis="x", labelsize=8)
+    figure.tight_layout()
+    return figure
 
 
 def layer_rows(
@@ -278,36 +425,7 @@ def main():
             paths.tables / "comparison" / f"{target}_model_layer_summary.csv",
             args.force,
         )
-        figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
-        for model in sorted({row["model"] for row in all_rows}):
-            rows = [row for row in all_rows if row["model"] == model]
-            depth = [row["relative_depth"] for row in rows]
-            axes[0].plot(
-                depth,
-                [row["mean_ivr"] for row in rows],
-                marker="o",
-                label=model,
-            )
-            axes[1].plot(
-                depth,
-                [row["consistent_active"] for row in rows],
-                marker="o",
-                label=model,
-            )
-        axes[0].set(
-            title="Mean input variation ratio",
-            xlabel="Relative depth",
-            ylabel="Mean IVR",
-        )
-        axes[1].set(
-            title="Consistent-active fraction",
-            xlabel="Relative depth",
-            ylabel="Fraction",
-        )
-        axes[1].set_yscale("symlog", linthresh=1e-3)
-        for axis in axes:
-            axis.legend()
-        figure.tight_layout()
+        figure = comparison_figure(target, all_rows)
         save_figure(
             figure,
             paths.figures / "comparison" / f"{target}_model_comparison.png",

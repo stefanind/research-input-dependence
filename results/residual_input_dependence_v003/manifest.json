@@ -1,0 +1,367 @@
+{
+  "config": {
+    "activations": {
+      "targets": [
+        "resid_post",
+        "resid_delta",
+        "attn_out",
+        "mlp_out"
+      ]
+    },
+    "classification": {
+      "consistent_ivr_max": 0.1,
+      "inactive_energy_ratio": 0.01,
+      "varying_ivr_min": 0.5
+    },
+    "data": {
+      "revision": "b08601e",
+      "sample_seed": 44,
+      "source": "wikitext",
+      "split": "train"
+    },
+    "experiment": {
+      "batch_size": 16,
+      "device": "auto",
+      "name": "residual_input_dependence_v003",
+      "num_chunks": 10000,
+      "seq_len": 128
+    },
+    "outputs": {
+      "root": "results"
+    },
+    "reliability": {
+      "seed": 0,
+      "split_half": false
+    },
+    "snapshots": {
+      "enabled": false,
+      "points": []
+    }
+  },
+  "created_at": "2026-07-08T23:26:38.425484+00:00",
+  "git_commit": "a266accd88be4078d0f2d88306fc2a880db893f7",
+  "git_dirty": false,
+  "models": {
+    "models": [
+      {
+        "hf_name": "distilgpt2",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "distilgpt2",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "gpt2-small",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-small",
+        "revision": "607a30d"
+      },
+      {
+        "hf_name": "gpt2-medium",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-medium",
+        "revision": "6dcaa7a952f72f9298047fd5137cd6e4f05f41da"
+      },
+      {
+        "hf_name": "gpt2-large",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-large",
+        "revision": "32b71b12589c2f8d625668d2335a01cac3249519"
+      },
+      {
+        "hf_name": "gpt2-xl",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt2-xl",
+        "revision": "15ea56dee5df4983c59b2538573817e1667135e2"
+      },
+      {
+        "hf_name": "EleutherAI/gpt-neo-125M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt-neo-125m",
+        "revision": "21def0189f5705e2521767faed922f1f15e7d7db"
+      },
+      {
+        "hf_name": "EleutherAI/gpt-neo-1.3B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt-neo-1.3b",
+        "revision": "dbe59a7f4a88d01d1ba9798d78dbe3fe038792c8"
+      },
+      {
+        "hf_name": "EleutherAI/gpt-neo-2.7B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "gpt-neo-2.7b"
+      },
+      {
+        "hf_name": "facebook/opt-125m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "opt-125m",
+        "revision": "2f28d2d92338fe5dbe0a3c334646567ba4bd6376"
+      },
+      {
+        "hf_name": "facebook/opt-1.3b",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "opt-1.3b",
+        "revision": "3f5c25d0bc631cb57ac65913f76e22c2dfb61d62",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "facebook/opt-2.7b",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "opt-2.7b",
+        "revision": "905a4b602cda5c501f1b3a2650a4152680238254",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "EleutherAI/pythia-14m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-14m",
+        "revision": "cf967c0a9a04383db6f7b1108d86b2962634b4ac"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-31m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-31m",
+        "revision": "e556ace21b489575e94e9d50b6dad2fcc7419679"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-70m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-70m",
+        "revision": "a39f36b100fe8a5377810d56c3f4789b9c53ac42"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-160m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-160m",
+        "revision": "50f5173"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-410m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-410m",
+        "revision": "9879c9b"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-70m-deduped",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-70m-deduped",
+        "revision": "e93a9faa9c77e5d09219f6c868bfc7a1bd65593c"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-160m-deduped",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-160m-deduped",
+        "revision": "582159a2dfe3e712a8d47ae83dec95ae3bde8e7e"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-410m-deduped",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-410m-deduped",
+        "revision": "c4fc8d586d62df497f1f9b69d66d3ca419992d3e"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-1b",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-1b",
+        "revision": "f73d7dcc545c8bd326d8559c8ef84ffe92fea6b2"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-1b-deduped",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-1b-deduped",
+        "revision": "7199d8fc61a6d565cd1f3c62bf11525b563e13b2"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-1.4b",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-1.4b",
+        "revision": "fedc38a16eea3bd36a96b906d78d11d2ce18ed79"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-2.8b",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-2.8b",
+        "revision": "2a259cdd96a4beb1cdf467512e3904197345f6a9"
+      },
+      {
+        "hf_name": "EleutherAI/pythia-2.8b-deduped",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "pythia-2.8b-deduped",
+        "revision": "7d977fed8c4ce9649816af8cd5fe36a639cbe5b2"
+      },
+      {
+        "hf_name": "bigscience/bloom-560m",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "bloom-560m",
+        "revision": "ac2ae5fab2ce3f9f40dc79b5ca9f637430d24971"
+      },
+      {
+        "hf_name": "bigscience/bloom-1b1",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "bloom-1b1",
+        "revision": "eb3dd7399312f5f94fd13f41d2f318117d3eb1e4"
+      },
+      {
+        "hf_name": "bigscience/bloom-1b7",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "bloom-1b7",
+        "revision": "cc72a88036c2fb937d65efeacc57a0c2ef5d6fe5"
+      },
+      {
+        "hf_name": "allenai/OLMo-1B-hf",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "olmo-1b",
+        "revision": "aee7752d9c08ee4775e9b0091426d8410e8f6a89"
+      },
+      {
+        "hf_name": "allenai/OLMo-2-0425-1B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "olmo2-0425-1b",
+        "revision": "a1847dff35000b4271fa70afc5db10fd29fedbdf"
+      },
+      {
+        "hf_name": "Qwen/Qwen2-0.5B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "qwen2-0.5b",
+        "revision": "91d2aff3f957f99e4c74c962f2f408dcc88a18d8"
+      },
+      {
+        "hf_name": "Qwen/Qwen2.5-0.5B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "qwen2.5-0.5b",
+        "revision": "060db6499f32faf8b98477b0a26969ef7d8b9987"
+      },
+      {
+        "hf_name": "Qwen/Qwen2.5-1.5B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "qwen2.5-1.5b",
+        "revision": "8faed761d45a263340a0528343f099c05c9a4323"
+      },
+      {
+        "hf_name": "Qwen/Qwen3-0.6B-Base",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "qwen3-0.6b-base",
+        "revision": "da87bfb608c14b7cf20ba1ce41287e8de496c0cd"
+      },
+      {
+        "hf_name": "Qwen/Qwen3-1.7B",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "qwen3-1.7b",
+        "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+      },
+      {
+        "hf_name": "microsoft/phi-1",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "phi-1",
+        "revision": "d4c0adcb065e84e00ca814e35cba3012ea9841ab"
+      },
+      {
+        "hf_name": "microsoft/phi-1_5",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "phi-1_5",
+        "revision": "77aa61eeac94fbf33d492b9f2744c98b42d5b5eb"
+      },
+      {
+        "hf_name": "microsoft/phi-2",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "phi-2",
+        "revision": "810d367871c1d460086d9f82db8696f2e0a0fcd0"
+      },
+      {
+        "hf_name": "roneneldan/TinyStories-1M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "tinystories-1m",
+        "revision": "77f1b168e219585646439073245fe87e56b3023e",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "roneneldan/TinyStories-3M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "tinystories-3m",
+        "revision": "cfaf26ec85ecdfc1bd7c2638104cce55cb67f894",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "roneneldan/TinyStories-8M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "tinystories-8m",
+        "revision": "8612e3b15c66ffa94eaa6ee0de5c96edd2d630af",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "roneneldan/TinyStories-28M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "tinystories-28m",
+        "revision": "52dabea9997faf578489d619249616926e54ed18",
+        "use_safetensors": false
+      },
+      {
+        "hf_name": "roneneldan/TinyStories-33M",
+        "library": "transformer_lens",
+        "max_seq_len": 128,
+        "name": "tinystories-33m",
+        "revision": "2ad0a164221b7c4d21cac7c46aec74f6f98dbfc8",
+        "use_safetensors": false
+      }
+    ]
+  },
+  "schema": {
+    "classification": 3,
+    "metrics": 4,
+    "stats": 3
+  },
+  "versions": {
+    "cuda": "12.8",
+    "cuda_available": true,
+    "datasets": "5.0.0",
+    "matplotlib": "3.11.0",
+    "numpy": "2.1.2",
+    "platform": "Linux-6.8.0-60-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Aug 14 2025, 17:47:21) [GCC 13.3.0]",
+    "pyyaml": "6.0.3",
+    "torch": "2.8.0+cu128",
+    "tqdm": "4.68.4",
+    "transformer-lens": "3.5.1",
+    "transformers": "5.13.0"
+  }
+}
